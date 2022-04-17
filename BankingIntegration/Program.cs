@@ -12,6 +12,7 @@ namespace BankingIntegration
             Console.WriteLine("Starting server");
             IntegrationServer server = new IntegrationServer();
             server.Start();
+            Console.WriteLine($"Listening at port {server.port}");
             server.NewLog += HandleServerLog;
             Console.ReadKey();
             server.Stop();

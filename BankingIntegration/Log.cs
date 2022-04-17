@@ -27,6 +27,8 @@ namespace BankingIntegration
         public String Message;
         public DateTime time = DateTime.UtcNow;
 
+        public Log() {}
+
         public Log(String message)
         {
             Message = message;

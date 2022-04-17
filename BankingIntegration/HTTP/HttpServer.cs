@@ -1,4 +1,5 @@
-﻿using System;
+﻿using BankingIntegration.HTTP;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Net;
@@ -9,13 +10,14 @@ namespace BankingIntegration
 {
     class HttpServer
     {
+        public int port = 8081;
         public static void EncodeMessage(HttpListenerResponse res, string message)
         {
             byte[] data = Encoding.ASCII.GetBytes(message);
             res.ContentLength64 = data.Length;
             res.OutputStream.Write(data);
         }
-
+        
         private bool running = false;
         private HttpListener listener;
         Thread serverThread;
@@ -25,8 +27,9 @@ namespace BankingIntegration
         public delegate void LogHandler(Log log);
         public event LogHandler NewLog;
 
-        public HttpServer(int port)
+        public HttpServer(int preferredPort)
         {
+            port = preferredPort;
             listener = new HttpListener();
             listener.Prefixes.Add($"http://localhost:{port}/");
         }
@@ -79,36 +82,28 @@ namespace BankingIntegration
         {
             try
             {
+                int reqStatus = -2;
                 Route? foundRoute = GetCorrespondingRoute(req.Url.LocalPath);
                 // By default return plain text.
                 res.ContentType = "text/plain";
-                string method = req.HttpMethod.ToLower();
                 if (foundRoute != null)
                 {
-                    if (foundRoute.HandledMethods.ContainsKey(method))
-                    {
-                        foundRoute.HandledMethods[method](req, res);
-                        NewLog(new HttpReqLog($"Served {req.Url.LocalPath} and handled.", method));
-                    } else
+                    reqStatus = foundRoute.Handle(req, res);
+                    
+                    if (reqStatus == -1)
                     {
                         EncodeMessage(res, "400 - Bad Request");
                         res.StatusCode = (int)HttpStatusCode.BadRequest;
-                        MakeLog(new HttpReqLog($"Served {req.Url.LocalPath}, but was wrong method.", method)
-                        {
-                            Severity = Log.LogSeverity.Warning
-                        });
-                    }
+                    } 
                 }
                 else
                 {
                     EncodeMessage(res, "404 - Not found");
                     res.StatusCode = (int)HttpStatusCode.NotFound;
-                    NewLog(new HttpReqLog($"Served {req.Url.LocalPath}, but hit 404", method)
-                    {
-                        Severity = Log.LogSeverity.Warning
-                    });
                 }
-            } finally
+                MakeLog(new HttpReqLog(req, reqStatus));
+            }
+            finally
             {
                 res.Close();
             }
