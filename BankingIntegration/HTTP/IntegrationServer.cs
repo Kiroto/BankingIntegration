@@ -30,14 +30,14 @@ namespace BankingIntegration
 
         public IntegrationServer(int preferredPort = 8081) : base(preferredPort)
         {
-            Route pingRoute = new Route("/");
-            pingRoute.DoGet = (body) =>
+            Route pingRequest = new Route("/v1/ping");
+            pingRequest.DoGet = (body) =>
             {
                 ProcessedResponse response = new ProcessedResponse();
                 response.Contents = "Home has been hit!";
                 return response;
             };
-            handledRoutes.Add(pingRoute);
+            handledRoutes.Add(pingRequest);
 
             Route loginRequest = new Route("/v1/login");
             loginRequest.DoPost = (reqBody) =>
@@ -81,6 +81,8 @@ namespace BankingIntegration
             };
             handledRoutes.Add(loginRequest);
 
+
+
             Route createClientRequest = new Route("/v1/createClient");
             createClientRequest.DoPost = (reqBody) =>
             {
@@ -101,6 +103,32 @@ namespace BankingIntegration
 
             };
             handledRoutes.Add(createClientRequest);
+
+            // Route getClientInfo
+            // Route updateClientInfo
+            // Route removeClient
+
+            // TODO:
+            // Route createAdminUser
+            // Route updatePassword
+            // Route updateUser
+
+            // Route createAccount
+            // Route withdrawFromAccount
+            // Route removeAccount
+            // Route getAccountsByClient
+
+            // Route createLoan
+            // Route payLoan
+            // Route removeLoan
+            // Route getLoansByClient
+
+            // Route addBeneficiario
+            // Route updateBeneficiario
+            // Route getBeneficiariosByClient
+            // Route removeBeneficiario
+
+            // Route getTransactionHistoryByAccount            
         }
 
         // Encryption Functions
