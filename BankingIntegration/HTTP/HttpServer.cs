@@ -1,4 +1,5 @@
-﻿using BankingIntegration.HTTP;
+﻿using BankingIntegration.BankModel;
+using BankingIntegration.HTTP;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -64,7 +65,7 @@ namespace BankingIntegration
             HandleContext(ctx.Request, ctx.Response);
         }
 
-        Route? GetCorrespondingRoute(string localPath)
+        public Route? GetCorrespondingRoute(string localPath)
         {
             foreach (Route route in handledRoutes)
             {
@@ -82,26 +83,33 @@ namespace BankingIntegration
         {
             try
             {
-                int reqStatus = -2;
+                ProcessedResponse reqResponse = new ProcessedResponse() { StatusCode = -2 };
                 Route? foundRoute = GetCorrespondingRoute(req.Url.LocalPath);
                 // By default return plain text.
                 res.ContentType = "text/plain";
                 if (foundRoute != null)
                 {
-                    reqStatus = foundRoute.Handle(req, res);
+                    HttpMethod method = Route.MethodFromString(req.HttpMethod);
+                    string reqBody = Utils.ReadFromStream(req.InputStream);
+                    reqResponse = foundRoute.Handle(reqBody, method);
                     
-                    if (reqStatus == -1)
+                    if (reqResponse.StatusCode == -1)
                     {
                         EncodeMessage(res, "400 - Bad Request");
                         res.StatusCode = (int)HttpStatusCode.BadRequest;
-                    } 
+                    } else
+                    {
+                        EncodeMessage(res, reqResponse.Contents);
+                        res.ContentType = "application/json";
+                        res.StatusCode = reqResponse.StatusCode;
+                    }
                 }
                 else
                 {
                     EncodeMessage(res, "404 - Not Found");
                     res.StatusCode = (int)HttpStatusCode.NotFound;
                 }
-                MakeLog(new HttpReqLog(req, reqStatus));
+                MakeLog(new HttpReqLog(req, reqResponse.StatusCode));
             }
             finally
             {

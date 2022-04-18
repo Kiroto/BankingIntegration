@@ -1,4 +1,5 @@
 ﻿using BankingIntegration.BankModel;
+using BankingIntegration.HTTP;
 using System;
 using System.Collections.Generic;
 using System.Net;
@@ -19,74 +20,93 @@ namespace BankingIntegration
         public int sessionTimeoutMin = 15;
 
         public List<UserSession> userSessions = new List<UserSession>();
+        public List<QueuedRequest> queuedRequests = new List<QueuedRequest>();
+
+        private ProcessedResponse coreOfflineResponse = new ProcessedResponse() { StatusCode = 503, Contents = MakeErrorMessage("The core is offline at the moment and cannot process this request.", ErrorCode.CORE_OFFLINE) };
+        private ProcessedResponse invalidCredentialsResponse = new ProcessedResponse() { StatusCode = 400, Contents = MakeErrorMessage("The Credentials given are not valid.", ErrorCode.CREDENTIALS_INVALID) };
+        private ProcessedResponse invalidSessionResponse = new ProcessedResponse() { StatusCode = 403, Contents = MakeErrorMessage("The received session key is not valid", ErrorCode.CREDENTIALS_INVALID) };
+
 
         public IntegrationServer(int preferredPort = 8081) : base(preferredPort)
         {
             Route pingRoute = new Route("/");
-            pingRoute.DoGet = (req, res) =>
+            pingRoute.DoGet = (body) =>
             {
-                EncodeMessage(res, "Home has been hit!");
-                return res.StatusCode;
+                ProcessedResponse response = new ProcessedResponse();
+                response.Contents = "Home has been hit!";
+                return response;
             };
             handledRoutes.Add(pingRoute);
 
             Route loginRequest = new Route("/v1/login");
-            loginRequest.DoPost = (req, res) =>
+            loginRequest.DoPost = (reqBody) =>
             {
-                if (IsCoreOnline())
-                {
-                    string reqBody = Utils.ReadFromStream(req.InputStream);
-                    UserLoginRequest ulr = JsonSerializer.Deserialize<UserLoginRequest>(reqBody);
-                    int? userIdRequest = CoreGetUserId(ulr);
-                    if (userIdRequest == null)
-                    {
-                        EncodeError("The Credentials given are not valid.", ErrorCode.CREDENTIALS_INVALID, res);
-                        res.StatusCode = 400;
-                    } 
-                    else
-                    {
-                        int userId = (int)userIdRequest;
-                        UserSession? existingUserSession = GetUserSession(userId);
-                        if (IsUserSessionValid(existingUserSession))
-                        {
-                            RefreshUserSession(existingUserSession);
-                        }
-                        else
-                        {
-                            DateTime currentTime = DateTime.Now;
-                            UserSession newSession = new UserSession()
-                            {
-                                UserID = userId,
-                                SessionToken = GenerateSessionToken(ulr),
-                                SessionStart = currentTime,
-                                LastRequest = currentTime,
-                                Service = ulr.ServiceId
-                            };
-                            EncodeMessage(res, newSession.AsJsonString());
-                            AddUserSession(newSession);
-                        }
-                        res.StatusCode = 200;
-                    }
-                } else
-                {
-                    EncodeError("The core is offline at the moment and cannot process this request.", ErrorCode.CORE_OFFLINE, res);
-                    res.StatusCode = 400;
-                }
-                return res.StatusCode; 
+                // Cant process if core is offline
+                if (!IsCoreOnline())
+                    return coreOfflineResponse;
 
+                // Confirm credentials
+                UserLoginRequest ulr = JsonSerializer.Deserialize<UserLoginRequest>(reqBody);
+                int? userIdRequest = CoreGetUserId(ulr);
+                if (userIdRequest == null)
+                    return invalidCredentialsResponse;
+
+
+                // Create the session
+                ProcessedResponse response = new ProcessedResponse();
+                int userId = (int)userIdRequest;
+                UserSession? existingUserSession = GetUserSession(userId);
+                if (IsUserSessionValid(existingUserSession))
+                {
+                    RefreshUserSession(existingUserSession);
+                    response.Contents = existingUserSession.AsJsonString();
+                }
+                else
+                {
+                    DateTime currentTime = DateTime.Now;
+                    UserSession newSession = new UserSession()
+                    {
+                        UserID = userId,
+                        SessionToken = GenerateSessionToken(ulr),
+                        SessionStart = currentTime,
+                        LastRequest = currentTime,
+                        Service = ulr.ServiceId
+                    };
+                    AddUserSession(newSession);
+                    response.Contents = newSession.AsJsonString();
+                }
+                response.StatusCode = 200;
+                return response;
             };
             handledRoutes.Add(loginRequest);
 
+            Route createClientRequest = new Route("/v1/createClient");
+            createClientRequest.DoPost = (reqBody) =>
+            {
+                // Confirm user session
+                ClientCreationRequest ccr = JsonSerializer.Deserialize<ClientCreationRequest>(reqBody);
+                UserSession? userSession = GetUserSession(ccr.EmployeeSessionToken);
+                if (!IsUserSessionValid(userSession))
+                    return invalidSessionResponse;
 
+                ProcessedResponse response = new ProcessedResponse();
+                ClientCreationAttempt cca = new ClientCreationAttempt(ccr, userSession.UserID);
+                CreateNewClient(cca);
+                response.StatusCode = 200;
+                
+                return response;
+
+            };
+            handledRoutes.Add(createClientRequest);
         }
 
         // Encryption Functions
-        private void EncodeError(string message, ErrorCode code, HttpListenerResponse res)
+        private static string MakeErrorMessage(string message, ErrorCode code)
         {
             ErrorMesage em = new ErrorMesage();
             em.Code = code;
             em.ErrorMessage = message;
-            EncodeMessage(res, em.AsJsonString());
+            return em.AsJsonString();
         }
         private static string sha256_hash(string value)
         {
@@ -120,6 +140,12 @@ namespace BankingIntegration
                 return us.UserID == userId;
             }));
         }
+        private bool IsUserSessionValid(string sessionToken)
+        {
+            UserSession? us = GetUserSession(sessionToken);
+            if (us == null) return false;
+            return IsUserSessionValid(us);
+        }
         private bool IsUserSessionValid(UserSession us)
         {
             return us.LastRequest < DateTime.Now.AddMinutes(sessionTimeoutMin);
@@ -139,6 +165,7 @@ namespace BankingIntegration
         }
         private void AddUserSession(UserSession us)
         {
+            // We only allow one session per user
             UserSession? oldUserSession = GetUserSession(us.UserID);
             if (IsUserSessionValid(oldUserSession)) // If a session for that user is still valid, just refresh it
             {
@@ -151,33 +178,42 @@ namespace BankingIntegration
                     DeleteUserSession(oldUserSession);
                     oldUserSession = GetUserSession(us.UserID);
                 }
-                userSessions.Add(us);
+                userSessions.Add(us); // Then add the new one
             }
         }
 
-        // Core Functions
+        // <> Core Functions <>
         private bool IsCoreOnline()
         {
-            return true;
-            Task<bool> coreOnlineTask = GetCoreOnlineTask();
-            if (coreOnlineTask.Wait(defaultRequestTimeout))
+            UriBuilder builder = new UriBuilder(coreUri);
+            builder.Path = "ping";
+            Task<HttpResponseMessage> res = client.GetAsync(builder.Uri);
+            if (res.Wait(defaultRequestTimeout))
             {
-                coreIsOnline = coreOnlineTask.Result;
+                bool oldState = coreIsOnline;
+                coreIsOnline = res.Result.StatusCode == HttpStatusCode.OK;
+                if (!oldState && coreIsOnline)
+                {
+                    DoQueuedRequests();
+                }
             }
             else
             {
                 coreIsOnline = false;
             };
-           
-           return coreIsOnline;
+            return coreIsOnline;
         }
-        private async Task<bool> GetCoreOnlineTask()
+
+        private void DoQueuedRequests()
         {
-            UriBuilder builder = new UriBuilder(coreUri);
-            builder.Path = "ping";
-            HttpResponseMessage res = await client.GetAsync(builder.Uri);
-            return res.StatusCode == HttpStatusCode.OK;
+            foreach (QueuedRequest qr in queuedRequests)
+            {
+                Route? route = GetCorrespondingRoute(qr.Path);
+                route.Handle(qr.Contents, qr.Method);
+            }
         }
+
+        // Authentication Functions
         private int? CoreGetUserId(UserLoginRequest ulr)
         {
             return 1;
@@ -185,12 +221,34 @@ namespace BankingIntegration
             builder.Path = "v1/login";
             HttpContent content = new StringContent(ulr.AsJsonString());
             Task<HttpResponseMessage> TResponseMessage = client.PostAsync(builder.Uri, content);
+
             if (!TResponseMessage.Wait(defaultRequestTimeout)) throw new CoreTimeoutException(); // Si no responde en un segundo, no es nada
             Task<string> TResultString = TResponseMessage.Result.Content.ReadAsStringAsync();
             if (!TResultString.Wait(defaultRequestTimeout)) throw new CoreTimeoutException(); // Si no se procesa la informacion en un segundo, falla
             string resultString = TResultString.Result;
             dynamic data = JsonSerializer.Deserialize<dynamic>(resultString);
-            return (int?) data.UserId;
+            return data.UserId;
+        }
+
+        // Client Functions
+        private int? CreateNewClient(ClientCreationAttempt cca)
+        {
+            if (IsCoreOnline())
+            {
+                UriBuilder builder = new UriBuilder(coreUri);
+                builder.Path = "/v1/createClient";
+                HttpContent content = new StringContent(cca.AsJsonString());
+
+                Task<HttpResponseMessage> TResponseMessage = client.PostAsync(builder.Uri, content);
+                if (!TResponseMessage.Wait(defaultRequestTimeout)) throw new CoreTimeoutException();
+                Task<string> TResultString = TResponseMessage.Result.Content.ReadAsStringAsync();
+                if (!TResultString.Wait(defaultRequestTimeout)) throw new CoreTimeoutException();
+                string resultString = TResultString.Result;
+
+                dynamic data = JsonSerializer.Deserialize<dynamic>(resultString);
+                return data.UserId;
+            }
+            return -1; 
         }
 
     }

@@ -6,10 +6,11 @@ using System.Text.Json.Serialization;
 
 namespace BankingIntegration.BankModel
 {
-    class ClientCreationAttempt : BankSerializable
+
+    class ClientCreationRequest : BankSerializable // Represents incoming client creation requests
     {
-        [JsonPropertyName("UserId")]
-        public int UserId { get; set; }
+        [JsonPropertyName("EmployeeSessionToken")]
+        public string EmployeeSessionToken { get; set; }
         [JsonPropertyName("ClientName")]
         public string ClientName { get; set; }
         [JsonPropertyName("ClientCedula")]
@@ -22,17 +23,6 @@ namespace BankingIntegration.BankModel
         public int Sex { get; set; }
         [JsonPropertyName("RequestId")]
         public string RequestId { get; set; }
-
-        public ClientCreationAttempt(ClientCreationRequest ccr, int userId)
-        {
-            UserId = userId;
-            ClientName = ccr.ClientName;
-            ClientCedula = ccr.ClientCedula;
-            ClientUsername = ccr.ClientUsername;
-            ClientPassword = ccr.ClientPassword;
-            Sex = ccr.Sex;
-            RequestId = ccr.RequestId;
-        }
 
         public string AsJsonString()
         {

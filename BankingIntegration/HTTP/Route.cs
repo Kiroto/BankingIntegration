@@ -10,10 +10,10 @@ namespace BankingIntegration
     {
         public string HandledPath;
 
-        public Func<HttpListenerRequest, HttpListenerResponse, int> DoGet;
-        public Func<HttpListenerRequest, HttpListenerResponse, int> DoPost;
-        public Func<HttpListenerRequest, HttpListenerResponse, int> DoDelete;
-        public Func<HttpListenerRequest, HttpListenerResponse, int> DoUpdate;
+        public Func<string, ProcessedResponse> DoGet;
+        public Func<string, ProcessedResponse> DoPost;
+        public Func<string, ProcessedResponse> DoDelete;
+        public Func<string, ProcessedResponse> DoUpdate;
 
         public Route(string path)
         {
@@ -54,11 +54,10 @@ namespace BankingIntegration
             return text;
         }
 
-        public int Handle(HttpListenerRequest req, HttpListenerResponse res)
+        public ProcessedResponse Handle(string req, HttpMethod method)
         {
-            int status = -1;
-            HttpMethod method = MethodFromString(req.HttpMethod);
-            Func<HttpListenerRequest, HttpListenerResponse, int>? handlingFunction = null;
+            ProcessedResponse status = new ProcessedResponse() { StatusCode = -1 };
+            Func<string, ProcessedResponse>? handlingFunction = null;
             switch (method)
             {
                 case HttpMethod.GET:
@@ -76,7 +75,7 @@ namespace BankingIntegration
             }
             if (handlingFunction != null)
             {
-                status = handlingFunction(req, res);
+                status = handlingFunction(req);
             }
             return status;
         }
