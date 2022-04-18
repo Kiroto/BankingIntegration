@@ -203,18 +203,17 @@ namespace BankingIntegration
             };
             return coreIsOnline;
         }
-
         private void DoQueuedRequests()
         {
             foreach (QueuedRequest qr in queuedRequests)
             {
                 Route? route = GetCorrespondingRoute(qr.Path);
                 ProcessedResponse pr = route.Handle(qr.Contents, qr.Method);
-                qr.resolved = pr.StatusCode != 503;
+                qr.Tried = true;
             }
             queuedRequests.RemoveAll((qr) =>
             {
-                return qr.resolved = true;
+                return qr.Tried == true;
             });
         }
 

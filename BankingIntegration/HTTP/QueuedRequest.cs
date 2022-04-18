@@ -10,6 +10,6 @@ namespace BankingIntegration.HTTP
         public String Contents;
         public string Path;
         public DateTime QueuedTime;
-        public bool resolved = false;
+        public bool Tried = false;
     }
 }
