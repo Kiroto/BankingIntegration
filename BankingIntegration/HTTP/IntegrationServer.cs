@@ -91,8 +91,8 @@ namespace BankingIntegration
 
                 ProcessedResponse response = new ProcessedResponse();
                 ClientCreationAttempt cca = new ClientCreationAttempt(ccr, userSession.UserID);
-                CreateNewClient(cca);
-                response.StatusCode = 200;
+                if (CreateNewClient(cca) != -1) response.StatusCode = 200;
+                else response.StatusCode = 503;
                 
                 return response;
 
@@ -130,9 +130,9 @@ namespace BankingIntegration
 
         // Session Functions
         private UserSession? GetUserSession(string sessionToken) {
-            return userSessions.Find(new Predicate<UserSession>((us) => {
+            return userSessions.Find((us) => {
                 return us.SessionToken == sessionToken;
-            }));
+            });
         }
         private UserSession? GetUserSession(int userId)
         {
@@ -209,8 +209,13 @@ namespace BankingIntegration
             foreach (QueuedRequest qr in queuedRequests)
             {
                 Route? route = GetCorrespondingRoute(qr.Path);
-                route.Handle(qr.Contents, qr.Method);
+                ProcessedResponse pr = route.Handle(qr.Contents, qr.Method);
+                qr.resolved = pr.StatusCode != 503;
             }
+            queuedRequests.RemoveAll((qr) =>
+            {
+                return qr.resolved = true;
+            });
         }
 
         // Authentication Functions
@@ -247,6 +252,9 @@ namespace BankingIntegration
 
                 dynamic data = JsonSerializer.Deserialize<dynamic>(resultString);
                 return data.UserId;
+            } else
+            {
+                queuedRequests.Add(new QueuedRequest());
             }
             return -1; 
         }
