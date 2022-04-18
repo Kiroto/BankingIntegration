@@ -24,7 +24,8 @@ namespace BankingIntegration
 
         private ProcessedResponse coreOfflineResponse = new ProcessedResponse() { StatusCode = 503, Contents = MakeErrorMessage("The core is offline at the moment and cannot process this request.", ErrorCode.CORE_OFFLINE) };
         private ProcessedResponse invalidCredentialsResponse = new ProcessedResponse() { StatusCode = 400, Contents = MakeErrorMessage("The Credentials given are not valid.", ErrorCode.CREDENTIALS_INVALID) };
-        private ProcessedResponse invalidSessionResponse = new ProcessedResponse() { StatusCode = 403, Contents = MakeErrorMessage("The received session key is not valid", ErrorCode.CREDENTIALS_INVALID) };
+        private ProcessedResponse invalidSessionResponse = new ProcessedResponse() { StatusCode = 403, Contents = MakeErrorMessage("The received session key is not valid.", ErrorCode.CREDENTIALS_INVALID) };
+        private ProcessedResponse noAvailableSessionResponse = new ProcessedResponse() { StatusCode = 403, Contents = MakeErrorMessage("The received session key does not exist.", ErrorCode.CREDENTIALS_INVALID) };
 
 
         public IntegrationServer(int preferredPort = 8081) : base(preferredPort)
@@ -86,6 +87,8 @@ namespace BankingIntegration
                 // Confirm user session
                 ClientCreationRequest ccr = JsonSerializer.Deserialize<ClientCreationRequest>(reqBody);
                 UserSession? userSession = GetUserSession(ccr.EmployeeSessionToken);
+                if (userSession == null)
+                    return noAvailableSessionResponse;
                 if (!IsUserSessionValid(userSession))
                     return invalidSessionResponse;
 
@@ -148,7 +151,7 @@ namespace BankingIntegration
         }
         private bool IsUserSessionValid(UserSession us)
         {
-            return us.LastRequest < DateTime.Now.AddMinutes(sessionTimeoutMin);
+            return us != null && us.LastRequest < DateTime.Now.AddMinutes(sessionTimeoutMin);
         }
         private bool RefreshUserSession(UserSession us)
         {
@@ -185,6 +188,7 @@ namespace BankingIntegration
         // <> Core Functions <>
         private bool IsCoreOnline()
         {
+            return true;
             UriBuilder builder = new UriBuilder(coreUri);
             builder.Path = "ping";
             Task<HttpResponseMessage> res = client.GetAsync(builder.Uri);

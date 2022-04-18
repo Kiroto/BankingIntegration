@@ -61,8 +61,14 @@ namespace BankingIntegration
 
         void HandleContext(object o)
         {
-            HttpListenerContext ctx = o as HttpListenerContext;
-            HandleContext(ctx.Request, ctx.Response);
+            try
+            {
+                HttpListenerContext ctx = o as HttpListenerContext;
+                HandleContext(ctx.Request, ctx.Response);
+            } catch (Exception e)
+            {
+                MakeLog(new Log($"Fatal Error, Unhandled exception {e.Message}", Log.LogSource.Self, Log.LogSeverity.Error));
+            }
         }
 
         public Route? GetCorrespondingRoute(string localPath)
@@ -95,19 +101,19 @@ namespace BankingIntegration
                     
                     if (reqResponse.StatusCode == -1)
                     {
-                        EncodeMessage(res, "400 - Bad Request");
                         res.StatusCode = (int)HttpStatusCode.BadRequest;
+                        EncodeMessage(res, "400 - Bad Request");
                     } else
                     {
-                        EncodeMessage(res, reqResponse.Contents);
-                        res.ContentType = "application/json";
                         res.StatusCode = reqResponse.StatusCode;
+                        res.ContentType = "application/json";
+                        EncodeMessage(res, reqResponse.Contents);
                     }
                 }
                 else
                 {
-                    EncodeMessage(res, "404 - Not Found");
                     res.StatusCode = (int)HttpStatusCode.NotFound;
+                    EncodeMessage(res, "404 - Not Found");
                 }
                 MakeLog(new HttpReqLog(req, reqResponse.StatusCode));
             }
