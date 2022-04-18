@@ -12,7 +12,7 @@ namespace BankingIntegration.BankModel
         [JsonPropertyName("idEmpleado")]
         public int IdEmpleado { get; set; }
 
-        public string asJsonString()
+        public string AsJsonString()
         {
             return JsonSerializer.Serialize(this);
         }

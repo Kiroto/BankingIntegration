@@ -19,12 +19,7 @@ namespace BankingIntegration.BankModel
         [JsonPropertyName("amount")]
         public float Amount { get; set; }
 
-        public static TransactionAttempt FromJsonString(string json)
-        {
-            return JsonSerializer.Deserialize<TransactionAttempt>(json);
-        }
-
-        public string asJsonString()
+        public string AsJsonString()
         {
             return JsonSerializer.Serialize(this);
         }

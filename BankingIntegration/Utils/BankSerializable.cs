@@ -7,6 +7,6 @@ namespace BankingIntegration.BankModel
 {
     interface BankSerializable
     {
-        public string asJsonString();
+        public string AsJsonString();
     }
 }
