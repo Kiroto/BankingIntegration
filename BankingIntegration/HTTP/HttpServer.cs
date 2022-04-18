@@ -98,7 +98,7 @@ namespace BankingIntegration
                 }
                 else
                 {
-                    EncodeMessage(res, "404 - Not found");
+                    EncodeMessage(res, "404 - Not Found");
                     res.StatusCode = (int)HttpStatusCode.NotFound;
                 }
                 MakeLog(new HttpReqLog(req, reqStatus));

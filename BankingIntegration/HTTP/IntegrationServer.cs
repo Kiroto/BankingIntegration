@@ -1,5 +1,6 @@
 ﻿using BankingIntegration.BankModel;
 using System;
+using System.Collections.Generic;
 using System.Net;
 using System.Net.Http;
 using System.Security.Cryptography;
@@ -15,8 +16,9 @@ namespace BankingIntegration
         public bool coreIsOnline = false;
         public Uri coreUri = new Uri("http://localhost:8082");
         public int defaultRequestTimeout = 1000;
+        public int sessionTimeoutMin = 15;
 
-        public UserSession[] userSessions = new UserSession[] {};
+        public List<UserSession> userSessions = new List<UserSession>();
 
         public IntegrationServer(int preferredPort = 8081) : base(preferredPort)
         {
@@ -44,16 +46,25 @@ namespace BankingIntegration
                     else
                     {
                         int userId = (int)userIdRequest;
-                        DateTime currentTime = DateTime.Now;
-                        UserSession newSession = new UserSession()
+                        UserSession? existingUserSession = GetUserSession(userId);
+                        if (IsUserSessionValid(existingUserSession))
                         {
-                            UserID = userId,
-                            SessionToken = GenerateSessionToken(ulr),
-                            SessionStart = currentTime,
-                            LastRequest = currentTime,
-                            Service = ulr.ServiceId
-                        };
-                        EncodeMessage(res, newSession.AsJsonString());
+                            RefreshUserSession(existingUserSession);
+                        }
+                        else
+                        {
+                            DateTime currentTime = DateTime.Now;
+                            UserSession newSession = new UserSession()
+                            {
+                                UserID = userId,
+                                SessionToken = GenerateSessionToken(ulr),
+                                SessionStart = currentTime,
+                                LastRequest = currentTime,
+                                Service = ulr.ServiceId
+                            };
+                            EncodeMessage(res, newSession.AsJsonString());
+                            AddUserSession(newSession);
+                        }
                         res.StatusCode = 200;
                     }
                 } else
@@ -69,6 +80,7 @@ namespace BankingIntegration
 
         }
 
+        // Encryption Functions
         private void EncodeError(string message, ErrorCode code, HttpListenerResponse res)
         {
             ErrorMesage em = new ErrorMesage();
@@ -76,7 +88,7 @@ namespace BankingIntegration
             em.ErrorMessage = message;
             EncodeMessage(res, em.AsJsonString());
         }
-        private static String sha256_hash(string value)
+        private static string sha256_hash(string value)
         {
             StringBuilder Sb = new StringBuilder();
 
@@ -96,8 +108,57 @@ namespace BankingIntegration
             return sha256_hash(ulr.Username + Convert.ToString(ulr.ServiceId) + DateTime.Now);
         }
 
+        // Session Functions
+        private UserSession? GetUserSession(string sessionToken) {
+            return userSessions.Find(new Predicate<UserSession>((us) => {
+                return us.SessionToken == sessionToken;
+            }));
+        }
+        private UserSession? GetUserSession(int userId)
+        {
+            return userSessions.Find(new Predicate<UserSession>((us) => {
+                return us.UserID == userId;
+            }));
+        }
+        private bool IsUserSessionValid(UserSession us)
+        {
+            return us.LastRequest < DateTime.Now.AddMinutes(sessionTimeoutMin);
+        }
+        private bool RefreshUserSession(UserSession us)
+        {
+            if (IsUserSessionValid(us))
+            {
+                us.Refresh();
+                return true;
+            }
+            return false;
+        }
+        private bool DeleteUserSession(UserSession us)
+        {
+            return userSessions.Remove(us);
+        }
+        private void AddUserSession(UserSession us)
+        {
+            UserSession? oldUserSession = GetUserSession(us.UserID);
+            if (IsUserSessionValid(oldUserSession)) // If a session for that user is still valid, just refresh it
+            {
+                RefreshUserSession(oldUserSession);
+            }
+            else
+            {
+                while (oldUserSession != null) // Remove all other old sessions for that user
+                {
+                    DeleteUserSession(oldUserSession);
+                    oldUserSession = GetUserSession(us.UserID);
+                }
+                userSessions.Add(us);
+            }
+        }
+
+        // Core Functions
         private bool IsCoreOnline()
         {
+            return true;
             Task<bool> coreOnlineTask = GetCoreOnlineTask();
             if (coreOnlineTask.Wait(defaultRequestTimeout))
             {
@@ -119,6 +180,7 @@ namespace BankingIntegration
         }
         private int? CoreGetUserId(UserLoginRequest ulr)
         {
+            return 1;
             UriBuilder builder = new UriBuilder(coreUri);
             builder.Path = "v1/login";
             HttpContent content = new StringContent(ulr.AsJsonString());

@@ -29,5 +29,10 @@ namespace BankingIntegration.BankModel
         {
             return JsonSerializer.Serialize(this);
         }
+
+        public void Refresh()
+        {
+            LastRequest = DateTime.Now;
+        }
     }
 }
