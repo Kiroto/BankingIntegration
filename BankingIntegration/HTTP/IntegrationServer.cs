@@ -33,10 +33,9 @@ namespace BankingIntegration
         public static List<UserSession> userSessions = new List<UserSession>();
         public static List<QueuedRequest> queuedRequests = new List<QueuedRequest>();
 
-        private ProcessedResponse coreOfflineResponse = new ProcessedResponse() { StatusCode = 503, Contents = MakeErrorMessage("The core is offline at the moment and cannot process this request.", ErrorCode.CORE_OFFLINE) };
-        private ProcessedResponse invalidCredentialsResponse = new ProcessedResponse() { StatusCode = 400, Contents = MakeErrorMessage("The Credentials given are not valid.", ErrorCode.CREDENTIALS_INVALID) };
-        private ProcessedResponse invalidSessionResponse = new ProcessedResponse() { StatusCode = 403, Contents = MakeErrorMessage("The received session key is not valid.", ErrorCode.CREDENTIALS_INVALID) };
-        private ProcessedResponse noAvailableSessionResponse = new ProcessedResponse() { StatusCode = 403, Contents = MakeErrorMessage("The received session key does not exist.", ErrorCode.CREDENTIALS_INVALID) };
+        public static readonly ProcessedResponse coreOfflineResponse = new ProcessedResponse() { StatusCode = 503, Contents = MakeErrorMessage("The core is offline at the moment and cannot process this request.", ErrorCode.CORE_OFFLINE) };
+        public static readonly ProcessedResponse invalidCredentialsResponse = new ProcessedResponse() { StatusCode = 400, Contents = MakeErrorMessage("The Credentials given are not valid.", ErrorCode.CREDENTIALS_INVALID) };
+        public static readonly ProcessedResponse invalidSessionResponse = new ProcessedResponse() { StatusCode = 403, Contents = MakeErrorMessage("The received session key is not valid.", ErrorCode.CREDENTIALS_INVALID) };
 
         public delegate void CoreIsUp();
         public static event CoreIsUp OnCoreUp;
@@ -57,20 +56,14 @@ namespace BankingIntegration
             Route loginRequest = new Route("/v1/login");
             loginRequest.DoPost = (reqBody) =>
             {
-                // Cant process if core is offline
-                if (!IsCoreOnline())
-                    return coreOfflineResponse;
-
                 // Confirm credentials
                 UserLoginRequest ulr = JsonSerializer.Deserialize<UserLoginRequest>(reqBody);
-                int? userIdRequest = CoreGetUserId(ulr);
-                if (userIdRequest == null)
-                    return invalidCredentialsResponse;
-
+                int userIdRequest = CoreGetUserId(ulr);
 
                 // Create the session
                 int userId = (int)userIdRequest;
-                UserSession? returnedSession = GetUserSession(userId); // Return an already existing session by default
+
+                UserSession returnedSession = GetUserSession(userId); // Return an already existing session by default
                 if (IsUserSessionValid(returnedSession))
                 {
                     RefreshUserSession(returnedSession);
@@ -98,11 +91,7 @@ namespace BankingIntegration
             {
                 // Confirm user session
                 ClientCreationRequest ccr = JsonSerializer.Deserialize<ClientCreationRequest>(reqBody);
-                UserSession? userSession = GetUserSession(ccr.SessionToken);
-                if (userSession == null)
-                    return noAvailableSessionResponse;
-                if (!IsUserSessionValid(userSession))
-                    return invalidSessionResponse;
+                UserSession userSession = GetUserSession(ccr.SessionToken);
 
                 ProcessedResponse response = new ProcessedResponse();
                 if (CreateNewClient(ccr, userSession.UserID) != -1) response.StatusCode = 200;
@@ -116,10 +105,10 @@ namespace BankingIntegration
             Route getClientRequest = new Route("/v1/getClient");
             getClientRequest.DoPost = (reqBody) =>
             {
-                if (!IsCoreOnline())
-                    return coreOfflineResponse;
+                ClientInfoRequest cir = JsonSerializer.Deserialize<ClientInfoRequest>(reqBody);
+                UserSession us = GetUserSession(cir.SessionToken);
 
-                return new ProcessedResponse();
+                return GetBankClient(cir, us.UserID);
             };
             handledRoutes.Add(getClientRequest);
 
@@ -180,22 +169,34 @@ namespace BankingIntegration
         }
 
         // Session Functions
-        private static UserSession? GetUserSession(string sessionToken) {
-            return userSessions.Find((us) => {
+        private static UserSession GetUserSession(string sessionToken) {
+            UserSession us = userSessions.Find((us) => {
                 return us.SessionToken == sessionToken;
             });
+            if (us == null) throw new NoSuchUserSessionException(sessionToken);
+            return us;
         }
         private static UserSession? GetUserSession(int userId)
         {
-            return userSessions.Find(new Predicate<UserSession>((us) => {
+            UserSession us = userSessions.Find((us) => {
                 return us.UserID == userId;
-            }));
+            });
+            if (us == null) throw new NoSuchUserSessionException($"UserId: {userId}");
+            return us;
+
         }
         private static bool IsUserSessionValid(string sessionToken)
         {
-            UserSession? us = GetUserSession(sessionToken);
-            if (us == null) return false;
-            return IsUserSessionValid(us);
+            try
+            {
+                UserSession us = GetUserSession(sessionToken);
+                return IsUserSessionValid(us);
+
+            }
+            catch
+            {
+                return false;
+            }
         }
         private static bool IsUserSessionValid(UserSession us)
         {
@@ -261,7 +262,7 @@ namespace BankingIntegration
         }
 
         // Authentication Functions
-        private int? CoreGetUserId(UserLoginRequest ulr)
+        private int CoreGetUserId(UserLoginRequest ulr)
         {
             string resultString = MakeCoreRequest("/v1/login", ulr.AsJsonString());
             dynamic data = JsonSerializer.Deserialize<dynamic>(resultString);
@@ -272,27 +273,21 @@ namespace BankingIntegration
         // Client Functions
         private int? CreateNewClient(ClientCreationRequest ccr, int userId)
         {
-            int foundUserId = -1;
-            if (IsCoreOnline())
-            {
+            try { 
                 ClientCreationAttempt cca = new ClientCreationAttempt(ccr, userId);
           
                 dynamic data = MakeCoreRequest("/v1/createClient", cca.AsJsonString());
-                foundUserId = data.UserId;
-            } else
+                return data.UserId;
+            } catch (CoreTimeoutException e)
             {
                 queuedRequests.Add(new QueuedRequest());
+                return -1;
             }
-            return foundUserId; 
         }
         private BankClient? GetBankClient(ClientInfoRequest cir, int requesterId)
         {
-            BankClient? bankClient = null;
-            if (IsCoreOnline())
-            {
-                ClientInfoAttempt cca = new ClientInfoAttempt(cir, requesterId);
-                bankClient = MakeCoreRequest("/v1/getClient", cca.AsJsonString());
-            }
+            ClientInfoAttempt cca = new ClientInfoAttempt(cir, requesterId);
+            BankClient bankClient = MakeCoreRequest("/v1/getClient", cca.AsJsonString());
             return bankClient;
         }
     }

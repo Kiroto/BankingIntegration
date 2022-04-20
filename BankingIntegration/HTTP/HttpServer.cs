@@ -1,5 +1,6 @@
 ﻿using BankingIntegration.BankModel;
 using BankingIntegration.HTTP;
+using BankingIntegration.HTTP.Exceptions;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -18,7 +19,12 @@ namespace BankingIntegration
             res.ContentLength64 = data.Length;
             res.OutputStream.Write(data);
         }
-        
+
+        public static readonly ProcessedResponse notFoundResponse = new ProcessedResponse() { Contents = "The required path was not found", StatusCode = 404 };
+        public static readonly ProcessedResponse badRequestResponse = new ProcessedResponse() { Contents = "The required path's request was malformed", StatusCode = (int)HttpStatusCode.BadRequest };
+        public static readonly ProcessedResponse internalServerErrorResponse = new ProcessedResponse() { Contents = "There was an internal error", StatusCode = (int)HttpStatusCode.InternalServerError };
+
+
         private bool running = false;
         private HttpListener listener;
         Thread serverThread;
@@ -65,7 +71,8 @@ namespace BankingIntegration
             {
                 HttpListenerContext ctx = o as HttpListenerContext;
                 HandleContext(ctx.Request, ctx.Response);
-            } catch (Exception e)
+            } 
+            catch (Exception e)
             {
                 MakeLog(new Log($"Fatal Error, Unhandled exception {e.Message}", Log.LogSource.Self, Log.LogSeverity.Error));
             }
@@ -87,12 +94,10 @@ namespace BankingIntegration
 
         void HandleContext(HttpListenerRequest req, HttpListenerResponse res)
         {
+            ProcessedResponse reqResponse = internalServerErrorResponse;
             try
             {
-                ProcessedResponse reqResponse = new ProcessedResponse() { StatusCode = -2 };
                 Route? foundRoute = GetCorrespondingRoute(req.Url.LocalPath);
-                // By default return plain text.
-                res.ContentType = "text/plain";
                 if (foundRoute != null)
                 {
                     HttpMethod method = Route.MethodFromString(req.HttpMethod);
@@ -101,24 +106,21 @@ namespace BankingIntegration
                     
                     if (reqResponse.StatusCode == -1)
                     {
-                        res.StatusCode = (int)HttpStatusCode.BadRequest;
-                        EncodeMessage(res, "400 - Bad Request");
-                    } else
-                    {
-                        res.StatusCode = reqResponse.StatusCode;
-                        res.ContentType = "application/json";
-                        EncodeMessage(res, reqResponse.Contents);
+                        reqResponse = badRequestResponse;
                     }
                 }
                 else
                 {
-                    res.StatusCode = (int)HttpStatusCode.NotFound;
-                    EncodeMessage(res, "404 - Not Found");
+                    reqResponse = notFoundResponse;
                 }
-                MakeLog(new HttpReqLog(req, reqResponse.StatusCode));
+            } catch (ForwardFacingException e)
+            {
+                reqResponse = e.ToResponse();
             }
             finally
             {
+                reqResponse.EncodeTo(res);
+                MakeLog(new HttpReqLog(req, reqResponse.StatusCode));
                 res.Close();
             }
         }

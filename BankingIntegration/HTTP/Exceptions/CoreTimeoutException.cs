@@ -1,10 +1,12 @@
-﻿using System;
+﻿using BankingIntegration.HTTP;
+using BankingIntegration.HTTP.Exceptions;
+using System;
 using System.Runtime.Serialization;
 
 namespace BankingIntegration
 {
     [Serializable]
-    internal class CoreTimeoutException : Exception
+    internal class CoreTimeoutException : ForwardFacingException
     {
         public CoreTimeoutException()
         {
@@ -20,6 +22,11 @@ namespace BankingIntegration
 
         protected CoreTimeoutException(SerializationInfo info, StreamingContext context) : base(info, context)
         {
+        }
+
+        public override ProcessedResponse ToResponse()
+        {
+            return IntegrationServer.coreOfflineResponse;
         }
     }
 }
