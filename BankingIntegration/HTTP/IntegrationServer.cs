@@ -81,8 +81,6 @@ namespace BankingIntegration
             };
             handledRoutes.Add(loginRequest);
 
-
-
             Route createClientRequest = new Route("/v1/createClient");
             createClientRequest.DoPost = (reqBody) =>
             {
@@ -128,6 +126,7 @@ namespace BankingIntegration
             // Route getBeneficiariosByClient
             // Route removeBeneficiario
 
+            // Route createTransaction
             // Route getTransactionHistoryByAccount            
         }
 
