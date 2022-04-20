@@ -45,83 +45,92 @@ namespace BankingIntegration
         {
             OnCoreUp += DoQueuedRequests;
 
-            Route pingRequest = new Route("/v1/ping");
-            pingRequest.DoGet = (body) =>
+            handledRoutes.Add(new Route("/v1/ping")
             {
-                ProcessedResponse response = new ProcessedResponse();
-                response.Contents = "Home has been hit!";
-                return response;
-            };
-            handledRoutes.Add(pingRequest);
-
-            Route loginRequest = new Route("/v1/login");
-            loginRequest.DoPost = (reqBody) =>
-            {
-                // Confirm credentials
-                UserLoginRequest ulr = JsonSerializer.Deserialize<UserLoginRequest>(reqBody);
-                int userIdRequest = CoreGetUserId(ulr);
-
-                // Create the session
-                int userId = (int)userIdRequest;
-
-                UserSession returnedSession = GetUserSession(userId); // Return an already existing session by default
-                if (IsUserSessionValid(returnedSession))
+                DoGet = (body) =>
                 {
-                    RefreshUserSession(returnedSession);
+                    ProcessedResponse response = new ProcessedResponse();
+                    response.Contents = "Home has been hit!";
+                    return response;
                 }
-                else
+            });
+            handledRoutes.Add(new Route("/v1/login")
+            {
+                DoPost = (reqBody) =>
                 {
-                    DateTime currentTime = DateTime.Now;
-                    returnedSession = new UserSession()
+                    // Confirm credentials
+                    UserLoginRequest ulr = JsonSerializer.Deserialize<UserLoginRequest>(reqBody);
+                    int userIdRequest = CoreGetUserId(ulr);
+
+                    // Create the session
+                    int userId = (int)userIdRequest;
+
+                    UserSession returnedSession = GetUserSession(userId); // Return an already existing session by default
+                    if (IsUserSessionValid(returnedSession))
                     {
-                        UserID = userId,
-                        SessionToken = GenerateSessionToken(ulr),
-                        SessionStart = currentTime,
-                        LastRequest = currentTime,
-                        Service = ulr.ServiceId
+                        RefreshUserSession(returnedSession);
+                    }
+                    else
+                    {
+                        DateTime currentTime = DateTime.Now;
+                        returnedSession = new UserSession()
+                        {
+                            UserID = userId,
+                            SessionToken = GenerateSessionToken(ulr),
+                            SessionStart = currentTime,
+                            LastRequest = currentTime,
+                            Service = ulr.ServiceId
+                        };
+                        AddUserSession(returnedSession);
+                    }
+                    returnedSession.StatusCode = 200;
+                    return returnedSession;
+                });
+            handledRoutes.Add(new Route("/v1/createClient")
+            {
+                DoPost = (reqBody) =>
+                {
+                    // Confirm user session
+                    ClientCreationRequest ccr = JsonSerializer.Deserialize<ClientCreationRequest>(reqBody);
+                    UserSession userSession = GetUserSession(ccr.SessionToken);
+
+                    ProcessedResponse response = new ProcessedResponse()
+                    {
+                        Contents = $"{{\"UserId\": {CreateNewClient(ccr, userSession.UserID)}}}",
+                        StatusCode = 200
                     };
-                    AddUserSession(returnedSession);
+                    return response;
+
                 }
-                returnedSession.StatusCode = 200;
-                return returnedSession;
-            };
-            handledRoutes.Add(loginRequest);
-
-            Route createClientRequest = new Route("/v1/createClient");
-            createClientRequest.DoPost = (reqBody) =>
+            });
+            handledRoutes.Add(new Route("/v1/getClient")
             {
-                // Confirm user session
-                ClientCreationRequest ccr = JsonSerializer.Deserialize<ClientCreationRequest>(reqBody);
-                UserSession userSession = GetUserSession(ccr.SessionToken);
-
-                ProcessedResponse response = new ProcessedResponse() {
-                    Contents = $"{{\"UserId\": {CreateNewClient(ccr, userSession.UserID)}}}",
-                    StatusCode = 200
-                };
-                return response;
-
-            };
-            handledRoutes.Add(createClientRequest);
-
-            Route getClientRequest = new Route("/v1/getClient");
-            getClientRequest.DoPost = (reqBody) =>
+                DoPost = (reqBody) =>
+                {
+                    ClientInfoRequest cir = JsonSerializer.Deserialize<ClientInfoRequest>(reqBody);
+                    UserSession us = GetUserSession(cir.SessionToken);
+                    return GetBankClient(cir, us.UserID);
+                }
+            });
+            handledRoutes.Add(new Route("/v1/updateClient")
             {
-                ClientInfoRequest cir = JsonSerializer.Deserialize<ClientInfoRequest>(reqBody);
-                UserSession us = GetUserSession(cir.SessionToken);
-                return GetBankClient(cir, us.UserID);
-            };
-            handledRoutes.Add(getClientRequest);
-
-            Route updateClientRequest = new Route("/v1/updateClient");
-            getClientRequest.DoPost = (reqBody) =>
+                DoPost = (reqBody) =>
+                {
+                    ClientEditionRequest cer = JsonSerializer.Deserialize<ClientEditionRequest>(reqBody);
+                    UserSession us = GetUserSession(cer.SessionToken);
+                    return EditBankClient(cer, us.UserID);
+                }
+            });
+            handledRoutes.Add(new Route("/v1/removeClient")
             {
-                ClientEditionRequest cer = JsonSerializer.Deserialize<ClientEditionRequest>(reqBody);
-                UserSession us = GetUserSession(cir.SessionToken);
-                return GetBankClient(cir, us.UserID);
-            };
-            handledRoutes.Add(getClientRequest);
+                DoPost = (reqBody) =>
+                {
+                    ClientEditionRequest cer = JsonSerializer.Deserialize<ClientEditionRequest>(reqBody);
+                    UserSession us = GetUserSession(cer.SessionToken);
+                    return EditBankClient(cer, us.UserID);
+                }
+            });
 
-            // Route updateClientInfo
             // Route removeClient
 
             // TODO:
@@ -177,8 +186,10 @@ namespace BankingIntegration
         }
 
         // Session Functions
-        private static UserSession GetUserSession(string sessionToken) {
-            UserSession us = userSessions.Find((us) => {
+        private static UserSession GetUserSession(string sessionToken)
+        {
+            UserSession us = userSessions.Find((us) =>
+            {
                 return us.SessionToken == sessionToken;
             });
             if (us == null) throw new NoSuchUserSessionException(sessionToken);
@@ -186,7 +197,8 @@ namespace BankingIntegration
         }
         private static UserSession? GetUserSession(int userId)
         {
-            UserSession us = userSessions.Find((us) => {
+            UserSession us = userSessions.Find((us) =>
+            {
                 return us.UserID == userId;
             });
             if (us == null) throw new NoSuchUserSessionException($"UserId: {userId}");
@@ -250,7 +262,8 @@ namespace BankingIntegration
                 MakeCoreRequest("ping", "");
                 OnCoreUp();
                 return true;
-            } catch
+            }
+            catch
             {
                 return false;
             }
@@ -281,21 +294,30 @@ namespace BankingIntegration
         // Client Functions
         private int CreateNewClient(ClientCreationRequest ccr, int userId)
         {
-            try { 
+            try
+            {
                 ClientCreationAttempt cca = new ClientCreationAttempt(ccr, userId);
-          
+
                 dynamic data = MakeCoreRequest("/v1/createClient", cca.AsJsonString());
                 return data.UserId;
-            } catch (CoreTimeoutException e)
+            }
+            catch (CoreTimeoutException e)
             {
                 queuedRequests.Add(new QueuedRequest());
                 return -1;
             }
         }
-        private BankClient? GetBankClient(ClientInfoRequest cir, int requesterId)
+        private BankClient GetBankClient(ClientInfoRequest cir, int requesterId)
         {
             ClientInfoAttempt cca = new ClientInfoAttempt(cir, requesterId);
             BankClient bankClient = MakeCoreRequest("/v1/getClient", cca.AsJsonString());
+            return bankClient;
+        }
+
+        private BankClient EditBankClient(ClientEditionRequest cer, int requesterId)
+        {
+            ClientEditionAttempt cia = new ClientEditionAttempt(cer, requesterId);
+            BankClient bankClient = MakeCoreRequest("/v1/updateClient", cia.AsJsonString());
             return bankClient;
         }
     }
