@@ -312,8 +312,14 @@ namespace BankingIntegration
         {
             foreach (QueuedRequest qr in queuedRequests)
             {
-                CoreRequestOrQueue(qr.Path, qr.Contents, qr.Method);
-                qr.Tried = true;
+                try
+                {
+                    CoreRequestOrQueue(qr.Path, qr.Contents, qr.Method);
+                    qr.Tried = true;
+                } catch (TransactionQueuedException e)
+                {
+                    // It will be retried anyways
+                }
             }
             queuedRequests.RemoveAll((qr) =>
             {
