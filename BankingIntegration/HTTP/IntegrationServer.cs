@@ -1,4 +1,5 @@
 ﻿using BankingIntegration.BankModel;
+using BankingIntegration.BankModel.General;
 using BankingIntegration.HTTP;
 using System;
 using System.Collections.Generic;
@@ -105,9 +106,11 @@ namespace BankingIntegration
             Route getClientRequest = new Route("/v1/getClient");
             getClientRequest.DoPost = (reqBody) =>
             {
+                BankClient bc = new BankClient();
+                bc.User = new BankUser();
+                return bc;
                 ClientInfoRequest cir = JsonSerializer.Deserialize<ClientInfoRequest>(reqBody);
                 UserSession us = GetUserSession(cir.SessionToken);
-
                 return GetBankClient(cir, us.UserID);
             };
             handledRoutes.Add(getClientRequest);

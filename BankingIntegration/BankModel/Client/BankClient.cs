@@ -12,7 +12,7 @@ namespace BankingIntegration.BankModel
     {
         [JsonPropertyName("Id")]
         public int Id { get; set; }
-        [JsonPropertyName("UserId")]
+        [JsonPropertyName("User")]
         public BankUser User { get; set; }
         [JsonPropertyName("Name")]
         public string Name { get; set; }

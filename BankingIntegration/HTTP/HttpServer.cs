@@ -119,6 +119,7 @@ namespace BankingIntegration
             }
             finally
             {
+                reqResponse.StatusCode = reqResponse.StatusCode >= 100 ? reqResponse.StatusCode : 200;
                 reqResponse.EncodeTo(res);
                 MakeLog(new HttpReqLog(req, reqResponse.StatusCode));
                 res.Close();
