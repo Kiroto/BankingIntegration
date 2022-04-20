@@ -9,6 +9,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
+using HttpMethod = BankingIntegration.HTTP.HttpMethod;
 
 namespace BankingIntegration
 {
@@ -20,16 +21,54 @@ namespace BankingIntegration
         public static int defaultRequestTimeout = 1000;
         public static int sessionTimeoutMin = 15;
 
-        private static dynamic? MakeCoreRequest(string path, string contents)
+        private static dynamic? MakeCoreRequest(string path, string contents, HttpMethod method = HttpMethod.POST)
         {
             UriBuilder builder = new UriBuilder(coreUri);
             builder.Path = path;
-            Task<HttpResponseMessage> TResponseMessage = httpClient.PostAsync(builder.Uri, new StringContent(contents));
+            StringContent httpContents = new StringContent(contents);
+            Task<HttpResponseMessage> TResponseMessage;
+            if (method == HttpMethod.GET)
+            {
+                TResponseMessage = httpClient.GetAsync(builder.Uri);
+            }
+            else if (method == HttpMethod.POST)
+            {
+                TResponseMessage = httpClient.PostAsync(builder.Uri, httpContents);
+            }
+            else if (method == HttpMethod.DELETE) // These last two will never be used
+            {
+                TResponseMessage = httpClient.DeleteAsync(builder.Uri);
+            }
+            else
+            {
+                throw new Exception("Unsupported request type");
+
+            }
+
             if (!TResponseMessage.Wait(defaultRequestTimeout)) throw new CoreTimeoutException();
             Task<string> TResultString = TResponseMessage.Result.Content.ReadAsStringAsync();
             if (!TResultString.Wait(defaultRequestTimeout)) throw new CoreTimeoutException();
             return JsonSerializer.Deserialize<dynamic>(TResultString.Result);
         }
+
+        private static dynamic CoreRequestOrQueue(string path, string contents, HttpMethod method = HttpMethod.POST)
+        {
+            try
+            {
+                return MakeCoreRequest(path, contents, method);
+            }
+            catch (CoreTimeoutException e)
+            {
+                queuedRequests.Add(new QueuedRequest() {
+                    Method = method,
+                    Contents = contents,
+                    Path = path,
+                    QueuedTime = DateTime.Now
+                });
+                return -1;
+            }
+        }
+
 
         public static List<UserSession> userSessions = new List<UserSession>();
         public static List<QueuedRequest> queuedRequests = new List<QueuedRequest>();
@@ -85,7 +124,8 @@ namespace BankingIntegration
                     }
                     returnedSession.StatusCode = 200;
                     return returnedSession;
-                });
+                }
+            });
             handledRoutes.Add(new Route("/v1/createClient")
             {
                 DoPost = (reqBody) =>
@@ -125,9 +165,9 @@ namespace BankingIntegration
             {
                 DoPost = (reqBody) =>
                 {
-                    ClientEditionRequest cer = JsonSerializer.Deserialize<ClientEditionRequest>(reqBody);
-                    UserSession us = GetUserSession(cer.SessionToken);
-                    return EditBankClient(cer, us.UserID);
+                    ClientDeletionRequest cdr = JsonSerializer.Deserialize<ClientDeletionRequest>(reqBody);
+                    UserSession us = GetUserSession(cdr.SessionToken);
+                    return DeleteBankClient(cdr, us.UserID);
                 }
             });
 
@@ -272,8 +312,7 @@ namespace BankingIntegration
         {
             foreach (QueuedRequest qr in queuedRequests)
             {
-                Route? route = GetCorrespondingRoute(qr.Path);
-                ProcessedResponse pr = route.Handle(qr.Contents, qr.Method);
+                CoreRequestOrQueue(qr.Path, qr.Contents, qr.Method);
                 qr.Tried = true;
             }
             queuedRequests.RemoveAll((qr) =>
@@ -318,6 +357,13 @@ namespace BankingIntegration
         {
             ClientEditionAttempt cia = new ClientEditionAttempt(cer, requesterId);
             BankClient bankClient = MakeCoreRequest("/v1/updateClient", cia.AsJsonString());
+            return bankClient;
+        }
+
+        private BankClient DeleteBankClient(ClientDeletionRequest cdr, int requesterId)
+        {
+            ClientDeletionAttempt cda = new ClientDeletionAttempt(cdr, requesterId);
+            BankClient bankClient = MakeCoreRequest("/v1/removeClient", cda.AsJsonString());
             return bankClient;
         }
     }
