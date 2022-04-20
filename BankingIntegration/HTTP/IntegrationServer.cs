@@ -94,10 +94,10 @@ namespace BankingIntegration
                 ClientCreationRequest ccr = JsonSerializer.Deserialize<ClientCreationRequest>(reqBody);
                 UserSession userSession = GetUserSession(ccr.SessionToken);
 
-                ProcessedResponse response = new ProcessedResponse();
-                if (CreateNewClient(ccr, userSession.UserID) != -1) response.StatusCode = 200;
-                else response.StatusCode = 503;
-                
+                ProcessedResponse response = new ProcessedResponse() {
+                    Contents = $"{{\"UserId\": {CreateNewClient(ccr, userSession.UserID)}}}",
+                    StatusCode = 200
+                };
                 return response;
 
             };
@@ -106,16 +106,21 @@ namespace BankingIntegration
             Route getClientRequest = new Route("/v1/getClient");
             getClientRequest.DoPost = (reqBody) =>
             {
-                BankClient bc = new BankClient();
-                bc.User = new BankUser();
-                return bc;
                 ClientInfoRequest cir = JsonSerializer.Deserialize<ClientInfoRequest>(reqBody);
                 UserSession us = GetUserSession(cir.SessionToken);
                 return GetBankClient(cir, us.UserID);
             };
             handledRoutes.Add(getClientRequest);
 
-            // Route getClientInfo
+            Route updateClientRequest = new Route("/v1/updateClient");
+            getClientRequest.DoPost = (reqBody) =>
+            {
+                ClientEditionRequest cer = JsonSerializer.Deserialize<ClientEditionRequest>(reqBody);
+                UserSession us = GetUserSession(cir.SessionToken);
+                return GetBankClient(cir, us.UserID);
+            };
+            handledRoutes.Add(getClientRequest);
+
             // Route updateClientInfo
             // Route removeClient
 
@@ -274,7 +279,7 @@ namespace BankingIntegration
         }
 
         // Client Functions
-        private int? CreateNewClient(ClientCreationRequest ccr, int userId)
+        private int CreateNewClient(ClientCreationRequest ccr, int userId)
         {
             try { 
                 ClientCreationAttempt cca = new ClientCreationAttempt(ccr, userId);
