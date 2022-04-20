@@ -51,6 +51,7 @@ namespace BankingIntegration
             return JsonSerializer.Deserialize<dynamic>(TResultString.Result);
         }
 
+        // Returns the result of the core request or -1 if the request was sent to queue.
         private static dynamic CoreRequestOrQueue(string path, string contents, HttpMethod method = HttpMethod.POST)
         {
             try
@@ -65,7 +66,7 @@ namespace BankingIntegration
                     Path = path,
                     QueuedTime = DateTime.Now
                 });
-                return -1;
+                throw new TransactionQueuedException();
             }
         }
 
@@ -76,6 +77,8 @@ namespace BankingIntegration
         public static readonly ProcessedResponse coreOfflineResponse = new ProcessedResponse() { StatusCode = 503, Contents = MakeErrorMessage("The core is offline at the moment and cannot process this request.", ErrorCode.CORE_OFFLINE) };
         public static readonly ProcessedResponse invalidCredentialsResponse = new ProcessedResponse() { StatusCode = 400, Contents = MakeErrorMessage("The Credentials given are not valid.", ErrorCode.CREDENTIALS_INVALID) };
         public static readonly ProcessedResponse invalidSessionResponse = new ProcessedResponse() { StatusCode = 403, Contents = MakeErrorMessage("The received session key is not valid.", ErrorCode.CREDENTIALS_INVALID) };
+        public static readonly ProcessedResponse transactionQueuedResponse = new ProcessedResponse() { StatusCode = 200, Contents = MakeErrorMessage("The transaction has been queued.", ErrorCode.CORE_OFFLINE) };
+
 
         public delegate void CoreIsUp();
         public static event CoreIsUp OnCoreUp;
@@ -171,11 +174,8 @@ namespace BankingIntegration
                 }
             });
 
-            // Route removeClient
-
             // TODO:
             // Route createAdminUser
-            // Route updatePassword
             // Route updateUser
 
             // Route createAccount
@@ -337,7 +337,7 @@ namespace BankingIntegration
             {
                 ClientCreationAttempt cca = new ClientCreationAttempt(ccr, userId);
 
-                dynamic data = MakeCoreRequest("/v1/createClient", cca.AsJsonString());
+                dynamic data = CoreRequestOrQueue("/v1/createClient", cca.AsJsonString());
                 return data.UserId;
             }
             catch (CoreTimeoutException e)
@@ -353,18 +353,20 @@ namespace BankingIntegration
             return bankClient;
         }
 
+        // Returns an empty bankClient if the service is unavailable (it was queued).
         private BankClient EditBankClient(ClientEditionRequest cer, int requesterId)
         {
             ClientEditionAttempt cia = new ClientEditionAttempt(cer, requesterId);
-            BankClient bankClient = MakeCoreRequest("/v1/updateClient", cia.AsJsonString());
-            return bankClient;
+            BankClient data = CoreRequestOrQueue("/v1/updateClient", cia.AsJsonString());
+            return data;
         }
 
+        // Returns an empty bankClient if the service is unavailable (it was queued).
         private BankClient DeleteBankClient(ClientDeletionRequest cdr, int requesterId)
         {
             ClientDeletionAttempt cda = new ClientDeletionAttempt(cdr, requesterId);
-            BankClient bankClient = MakeCoreRequest("/v1/removeClient", cda.AsJsonString());
-            return bankClient;
+            BankClient data = CoreRequestOrQueue("/v1/removeClient", cda.AsJsonString());
+            return data;
         }
     }
 }
