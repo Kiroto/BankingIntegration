@@ -13,23 +13,38 @@ namespace BankingIntegration
 {
     class IntegrationServer : HttpServer
     {
-        private static readonly HttpClient client = new HttpClient();
-        public bool coreIsOnline = false;
-        public Uri coreUri = new Uri("http://localhost:8082");
-        public int defaultRequestTimeout = 1000;
-        public int sessionTimeoutMin = 15;
+        private static readonly HttpClient httpClient = new HttpClient();
+        public static bool coreIsOnline = false;
+        public static Uri coreUri = new Uri("http://localhost:8082");
+        public static int defaultRequestTimeout = 1000;
+        public static int sessionTimeoutMin = 15;
 
-        public List<UserSession> userSessions = new List<UserSession>();
-        public List<QueuedRequest> queuedRequests = new List<QueuedRequest>();
+        private static dynamic? MakeCoreRequest(string path, string contents)
+        {
+            UriBuilder builder = new UriBuilder(coreUri);
+            builder.Path = path;
+            Task<HttpResponseMessage> TResponseMessage = httpClient.PostAsync(builder.Uri, new StringContent(contents));
+            if (!TResponseMessage.Wait(defaultRequestTimeout)) throw new CoreTimeoutException();
+            Task<string> TResultString = TResponseMessage.Result.Content.ReadAsStringAsync();
+            if (!TResultString.Wait(defaultRequestTimeout)) throw new CoreTimeoutException();
+            return JsonSerializer.Deserialize<dynamic>(TResultString.Result);
+        }
+
+        public static List<UserSession> userSessions = new List<UserSession>();
+        public static List<QueuedRequest> queuedRequests = new List<QueuedRequest>();
 
         private ProcessedResponse coreOfflineResponse = new ProcessedResponse() { StatusCode = 503, Contents = MakeErrorMessage("The core is offline at the moment and cannot process this request.", ErrorCode.CORE_OFFLINE) };
         private ProcessedResponse invalidCredentialsResponse = new ProcessedResponse() { StatusCode = 400, Contents = MakeErrorMessage("The Credentials given are not valid.", ErrorCode.CREDENTIALS_INVALID) };
         private ProcessedResponse invalidSessionResponse = new ProcessedResponse() { StatusCode = 403, Contents = MakeErrorMessage("The received session key is not valid.", ErrorCode.CREDENTIALS_INVALID) };
         private ProcessedResponse noAvailableSessionResponse = new ProcessedResponse() { StatusCode = 403, Contents = MakeErrorMessage("The received session key does not exist.", ErrorCode.CREDENTIALS_INVALID) };
 
+        public delegate void CoreIsUp();
+        public static event CoreIsUp OnCoreUp;
 
         public IntegrationServer(int preferredPort = 8081) : base(preferredPort)
         {
+            OnCoreUp += DoQueuedRequests;
+
             Route pingRequest = new Route("/v1/ping");
             pingRequest.DoGet = (body) =>
             {
@@ -54,18 +69,16 @@ namespace BankingIntegration
 
 
                 // Create the session
-                ProcessedResponse response = new ProcessedResponse();
                 int userId = (int)userIdRequest;
-                UserSession? existingUserSession = GetUserSession(userId);
-                if (IsUserSessionValid(existingUserSession))
+                UserSession? returnedSession = GetUserSession(userId); // Return an already existing session by default
+                if (IsUserSessionValid(returnedSession))
                 {
-                    RefreshUserSession(existingUserSession);
-                    response.Contents = existingUserSession.AsJsonString();
+                    RefreshUserSession(returnedSession);
                 }
                 else
                 {
                     DateTime currentTime = DateTime.Now;
-                    UserSession newSession = new UserSession()
+                    returnedSession = new UserSession()
                     {
                         UserID = userId,
                         SessionToken = GenerateSessionToken(ulr),
@@ -73,11 +86,10 @@ namespace BankingIntegration
                         LastRequest = currentTime,
                         Service = ulr.ServiceId
                     };
-                    AddUserSession(newSession);
-                    response.Contents = newSession.AsJsonString();
+                    AddUserSession(returnedSession);
                 }
-                response.StatusCode = 200;
-                return response;
+                returnedSession.StatusCode = 200;
+                return returnedSession;
             };
             handledRoutes.Add(loginRequest);
 
@@ -86,21 +98,30 @@ namespace BankingIntegration
             {
                 // Confirm user session
                 ClientCreationRequest ccr = JsonSerializer.Deserialize<ClientCreationRequest>(reqBody);
-                UserSession? userSession = GetUserSession(ccr.EmployeeSessionToken);
+                UserSession? userSession = GetUserSession(ccr.SessionToken);
                 if (userSession == null)
                     return noAvailableSessionResponse;
                 if (!IsUserSessionValid(userSession))
                     return invalidSessionResponse;
 
                 ProcessedResponse response = new ProcessedResponse();
-                ClientCreationAttempt cca = new ClientCreationAttempt(ccr, userSession.UserID);
-                if (CreateNewClient(cca) != -1) response.StatusCode = 200;
+                if (CreateNewClient(ccr, userSession.UserID) != -1) response.StatusCode = 200;
                 else response.StatusCode = 503;
                 
                 return response;
 
             };
             handledRoutes.Add(createClientRequest);
+
+            Route getClientRequest = new Route("/v1/getClient");
+            getClientRequest.DoPost = (reqBody) =>
+            {
+                if (!IsCoreOnline())
+                    return coreOfflineResponse;
+
+                return new ProcessedResponse();
+            };
+            handledRoutes.Add(getClientRequest);
 
             // Route getClientInfo
             // Route updateClientInfo
@@ -159,24 +180,24 @@ namespace BankingIntegration
         }
 
         // Session Functions
-        private UserSession? GetUserSession(string sessionToken) {
+        private static UserSession? GetUserSession(string sessionToken) {
             return userSessions.Find((us) => {
                 return us.SessionToken == sessionToken;
             });
         }
-        private UserSession? GetUserSession(int userId)
+        private static UserSession? GetUserSession(int userId)
         {
             return userSessions.Find(new Predicate<UserSession>((us) => {
                 return us.UserID == userId;
             }));
         }
-        private bool IsUserSessionValid(string sessionToken)
+        private static bool IsUserSessionValid(string sessionToken)
         {
             UserSession? us = GetUserSession(sessionToken);
             if (us == null) return false;
             return IsUserSessionValid(us);
         }
-        private bool IsUserSessionValid(UserSession us)
+        private static bool IsUserSessionValid(UserSession us)
         {
             return us != null && us.LastRequest < DateTime.Now.AddMinutes(sessionTimeoutMin);
         }
@@ -213,26 +234,17 @@ namespace BankingIntegration
         }
 
         // <> Core Functions <>
-        private bool IsCoreOnline()
+        private static bool IsCoreOnline()
         {
-            return true;
-            UriBuilder builder = new UriBuilder(coreUri);
-            builder.Path = "ping";
-            Task<HttpResponseMessage> res = client.GetAsync(builder.Uri);
-            if (res.Wait(defaultRequestTimeout))
+            try
             {
-                bool oldState = coreIsOnline;
-                coreIsOnline = res.Result.StatusCode == HttpStatusCode.OK;
-                if (!oldState && coreIsOnline)
-                {
-                    DoQueuedRequests();
-                }
+                MakeCoreRequest("ping", "");
+                OnCoreUp();
+                return true;
+            } catch
+            {
+                return false;
             }
-            else
-            {
-                coreIsOnline = false;
-            };
-            return coreIsOnline;
         }
         private void DoQueuedRequests()
         {
@@ -251,43 +263,37 @@ namespace BankingIntegration
         // Authentication Functions
         private int? CoreGetUserId(UserLoginRequest ulr)
         {
-            return 1;
-            UriBuilder builder = new UriBuilder(coreUri);
-            builder.Path = "v1/login";
-            HttpContent content = new StringContent(ulr.AsJsonString());
-            Task<HttpResponseMessage> TResponseMessage = client.PostAsync(builder.Uri, content);
-
-            if (!TResponseMessage.Wait(defaultRequestTimeout)) throw new CoreTimeoutException(); // Si no responde en un segundo, no es nada
-            Task<string> TResultString = TResponseMessage.Result.Content.ReadAsStringAsync();
-            if (!TResultString.Wait(defaultRequestTimeout)) throw new CoreTimeoutException(); // Si no se procesa la informacion en un segundo, falla
-            string resultString = TResultString.Result;
+            string resultString = MakeCoreRequest("/v1/login", ulr.AsJsonString());
             dynamic data = JsonSerializer.Deserialize<dynamic>(resultString);
+            ClientInfoAttempt cia = data;
             return data.UserId;
         }
 
         // Client Functions
-        private int? CreateNewClient(ClientCreationAttempt cca)
+        private int? CreateNewClient(ClientCreationRequest ccr, int userId)
         {
+            int foundUserId = -1;
             if (IsCoreOnline())
             {
-                UriBuilder builder = new UriBuilder(coreUri);
-                builder.Path = "/v1/createClient";
-                HttpContent content = new StringContent(cca.AsJsonString());
-
-                Task<HttpResponseMessage> TResponseMessage = client.PostAsync(builder.Uri, content);
-                if (!TResponseMessage.Wait(defaultRequestTimeout)) throw new CoreTimeoutException();
-                Task<string> TResultString = TResponseMessage.Result.Content.ReadAsStringAsync();
-                if (!TResultString.Wait(defaultRequestTimeout)) throw new CoreTimeoutException();
-                string resultString = TResultString.Result;
-
-                dynamic data = JsonSerializer.Deserialize<dynamic>(resultString);
-                return data.UserId;
+                ClientCreationAttempt cca = new ClientCreationAttempt(ccr, userId);
+          
+                dynamic data = MakeCoreRequest("/v1/createClient", cca.AsJsonString());
+                foundUserId = data.UserId;
             } else
             {
                 queuedRequests.Add(new QueuedRequest());
             }
-            return -1; 
+            return foundUserId; 
         }
-
+        private BankClient? GetBankClient(ClientInfoRequest cir, int requesterId)
+        {
+            BankClient? bankClient = null;
+            if (IsCoreOnline())
+            {
+                ClientInfoAttempt cca = new ClientInfoAttempt(cir, requesterId);
+                bankClient = MakeCoreRequest("/v1/getClient", cca.AsJsonString());
+            }
+            return bankClient;
+        }
     }
 }

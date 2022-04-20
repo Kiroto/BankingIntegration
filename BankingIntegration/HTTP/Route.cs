@@ -1,4 +1,5 @@
-﻿using BankingIntegration.HTTP;
+﻿using BankingIntegration.BankModel;
+using BankingIntegration.HTTP;
 using System;
 using System.Collections.Generic;
 using System.Net;
@@ -10,10 +11,10 @@ namespace BankingIntegration
     {
         public string HandledPath;
 
-        public Func<string, ProcessedResponse> DoGet;
-        public Func<string, ProcessedResponse> DoPost;
-        public Func<string, ProcessedResponse> DoDelete;
-        public Func<string, ProcessedResponse> DoUpdate;
+        public Func<string, IResponsible> DoGet;
+        public Func<string, IResponsible> DoPost;
+        public Func<string, IResponsible> DoDelete;
+        public Func<string, IResponsible> DoUpdate;
 
         public Route(string path)
         {
@@ -56,8 +57,8 @@ namespace BankingIntegration
 
         public ProcessedResponse Handle(string req, HttpMethod method)
         {
-            ProcessedResponse status = new ProcessedResponse() { StatusCode = -1 };
-            Func<string, ProcessedResponse>? handlingFunction = null;
+            IResponsible status = new ProcessedResponse() { StatusCode = -1 };
+            Func<string, IResponsible>? handlingFunction = null;
             switch (method)
             {
                 case HttpMethod.GET:
@@ -77,7 +78,7 @@ namespace BankingIntegration
             {
                 status = handlingFunction(req);
             }
-            return status;
+            return status.buildResponse();
         }
     }
 }

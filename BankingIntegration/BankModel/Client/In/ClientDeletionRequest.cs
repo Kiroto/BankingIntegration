@@ -7,12 +7,13 @@ using System.Text.Json.Serialization;
 namespace BankingIntegration.BankModel
 {
 
-    class ClientCreationRequest : BankSerializable, Sessioned // Represents incoming client creation requests
+    class ClientDeletionRequest : BankSerializable, Sessioned  // Represents incoming client deletion requests
     {
+
         [JsonPropertyName("SessionToken")]
         public string SessionToken { get; set; }
-        [JsonPropertyName("Client")]
-        public BankClient BankClientInfo { get; set; }
+        [JsonPropertyName("ClientId")]
+        public int ClientId { get; set; }
         [JsonPropertyName("RequestId")]
         public string RequestId { get; set; }
 

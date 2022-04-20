@@ -1,12 +1,19 @@
-﻿using System;
+﻿using BankingIntegration.BankModel;
+using System;
 using System.Collections.Generic;
 using System.Text;
 
 namespace BankingIntegration.HTTP
 {
-    class ProcessedResponse
+    class ProcessedResponse : IResponsible
     {
         public string Contents;
-        public int StatusCode;
+
+        public int StatusCode { get; set; }
+
+        public ProcessedResponse buildResponse()
+        {
+            return this;
+        }
     }
 }

@@ -6,15 +6,21 @@ using System.Text.Json.Serialization;
 
 namespace BankingIntegration.BankModel
 {
-
-    class ClientCreationRequest : BankSerializable, Sessioned // Represents incoming client creation requests
+    class ClientEditionAttempt : BankSerializable, Authenticated // Represents outgoing client edition attempts
     {
-        [JsonPropertyName("SessionToken")]
-        public string SessionToken { get; set; }
+        [JsonPropertyName("InitiatorId")]
+        public int InitiatorId { get; set; }
         [JsonPropertyName("Client")]
         public BankClient BankClientInfo { get; set; }
         [JsonPropertyName("RequestId")]
         public string RequestId { get; set; }
+
+        public ClientEditionAttempt(ClientEditionRequest cer, int initiatorId)
+        {
+            InitiatorId = initiatorId;
+            BankClientInfo = cer.BankClientInfo;
+            RequestId = cer.RequestId;
+        }
 
         public string AsJsonString()
         {
