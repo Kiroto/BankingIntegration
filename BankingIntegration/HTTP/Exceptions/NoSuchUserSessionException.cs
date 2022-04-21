@@ -26,7 +26,7 @@ namespace BankingIntegration
 
         public override ProcessedResponse ToResponse()
         {
-            return IntegrationServer.invalidSessionResponse;
+            return IntegrationServer.invalidCredentialsResponse;
         }
     }
 }

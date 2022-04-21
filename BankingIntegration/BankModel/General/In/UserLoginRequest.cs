@@ -8,11 +8,9 @@ namespace BankingIntegration.BankModel
 {
     class UserLoginRequest : BankSerializable
     {
-        // The user ID
         [JsonPropertyName("Username")]
-        public int Username { get; set; }
+        public string Username { get; set; }
 
-        // The session token for the user.
         [JsonPropertyName("PasswordHash")]
         public string PasswordHash { get; set; }
 

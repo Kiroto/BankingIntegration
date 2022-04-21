@@ -79,7 +79,6 @@ namespace BankingIntegration
         public static readonly ProcessedResponse invalidSessionResponse = new ProcessedResponse() { StatusCode = 403, Contents = MakeErrorMessage("The received session key is not valid.", ErrorCode.CREDENTIALS_INVALID) };
         public static readonly ProcessedResponse transactionQueuedResponse = new ProcessedResponse() { StatusCode = 200, Contents = MakeErrorMessage("The transaction has been queued.", ErrorCode.CORE_OFFLINE) };
 
-
         public delegate void CoreIsUp();
         public static event CoreIsUp OnCoreUp;
 
@@ -102,10 +101,7 @@ namespace BankingIntegration
                 {
                     // Confirm credentials
                     UserLoginRequest ulr = JsonSerializer.Deserialize<UserLoginRequest>(reqBody);
-                    int userIdRequest = CoreGetUserId(ulr);
-
-                    // Create the session
-                    int userId = (int)userIdRequest;
+                    int userId = CoreGetUserId(ulr);
 
                     UserSession returnedSession = GetUserSession(userId); // Return an already existing session by default
                     if (IsUserSessionValid(returnedSession))
@@ -332,7 +328,7 @@ namespace BankingIntegration
         {
             string resultString = MakeCoreRequest("/v1/login", ulr.AsJsonString());
             dynamic data = JsonSerializer.Deserialize<dynamic>(resultString);
-            ClientInfoAttempt cia = data;
+            if (data.UserId == -1) throw new NoSuchUserSessionException();
             return data.UserId;
         }
 
