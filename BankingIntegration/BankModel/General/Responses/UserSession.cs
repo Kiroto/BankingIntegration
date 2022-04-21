@@ -11,7 +11,7 @@ namespace BankingIntegration.BankModel
     {
         // The user ID
         [JsonPropertyName("UserId")]
-        public int UserID { get; set; }
+        public int UserId { get; set; }
 
         // The session token for the user.
         [JsonPropertyName("SessionToken")]

@@ -101,28 +101,30 @@ namespace BankingIntegration
                 {
                     // Confirm credentials
                     UserLoginRequest ulr = JsonSerializer.Deserialize<UserLoginRequest>(reqBody);
-                    int userId = UserLogin(ulr).UserID;
+                    ClientSession clientSession = ClientLogin(ulr);
 
-                    UserSession returnedSession = GetUserSession(userId); // Return an already existing session by default
-                    if (IsUserSessionValid(returnedSession))
+                    UserSession existingSession = GetUserSession(clientSession.UserId); // Return an already existing session by default
+                    if (IsUserSessionValid(existingSession))
                     {
-                        RefreshUserSession(returnedSession);
+
+                        RefreshUserSession(existingSession);
                     }
                     else
                     {
                         DateTime currentTime = DateTime.Now;
-                        returnedSession = new UserSession()
+                        clientSession = new ClientSession()
                         {
-                            UserID = userId,
+                            UserId = clientSession.UserId,
+                            ClientId = clientSession.ClientId,
                             SessionToken = GenerateSessionToken(ulr),
                             SessionStart = currentTime,
                             LastRequest = currentTime,
                             Service = ulr.ServiceId
                         };
-                        AddUserSession(returnedSession);
+                        AddUserSession(existingSession);
                     }
-                    returnedSession.StatusCode = 200;
-                    return returnedSession;
+                    clientSession.StatusCode = 200;
+                    return clientSession;
                 }
             });
             handledRoutes.Add(new Route("/v1/createClient")
@@ -135,7 +137,7 @@ namespace BankingIntegration
 
                     ProcessedResponse response = new ProcessedResponse()
                     {
-                        Contents = $"{{\"UserId\": {CreateNewClient(ccr, userSession.UserID)}}}",
+                        Contents = $"{{\"UserId\": {CreateNewClient(ccr, userSession.UserId)}}}",
                         StatusCode = 200
                     };
                     return response;
@@ -148,7 +150,7 @@ namespace BankingIntegration
                 {
                     ClientInfoRequest cir = JsonSerializer.Deserialize<ClientInfoRequest>(reqBody);
                     UserSession us = GetUserSession(cir.SessionToken);
-                    return GetBankClient(cir, us.UserID);
+                    return GetBankClient(cir, us.UserId);
                 }
             });
             handledRoutes.Add(new Route("/v1/updateClient")
@@ -157,7 +159,7 @@ namespace BankingIntegration
                 {
                     ClientEditionRequest cer = JsonSerializer.Deserialize<ClientEditionRequest>(reqBody);
                     UserSession us = GetUserSession(cer.SessionToken);
-                    return EditBankClient(cer, us.UserID);
+                    return EditBankClient(cer, us.UserId);
                 }
             });
             handledRoutes.Add(new Route("/v1/removeClient")
@@ -166,7 +168,7 @@ namespace BankingIntegration
                 {
                     ClientDeletionRequest cdr = JsonSerializer.Deserialize<ClientDeletionRequest>(reqBody);
                     UserSession us = GetUserSession(cdr.SessionToken);
-                    return DeleteBankClient(cdr, us.UserID);
+                    return DeleteBankClient(cdr, us.UserId);
                 }
             });
 
@@ -235,7 +237,7 @@ namespace BankingIntegration
         {
             UserSession us = userSessions.Find((us) =>
             {
-                return us.UserID == userId;
+                return us.UserId == userId;
             });
             return us;
 
@@ -273,7 +275,7 @@ namespace BankingIntegration
         private void AddUserSession(UserSession us)
         {
             // We only allow one session per user
-            UserSession? oldUserSession = GetUserSession(us.UserID);
+            UserSession? oldUserSession = GetUserSession(us.UserId);
             if (IsUserSessionValid(oldUserSession)) // If a session for that user is still valid, just refresh it
             {
                 RefreshUserSession(oldUserSession);
@@ -283,7 +285,7 @@ namespace BankingIntegration
                 while (oldUserSession != null) // Remove all other old sessions for that user
                 {
                     DeleteUserSession(oldUserSession);
-                    oldUserSession = GetUserSession(us.UserID);
+                    oldUserSession = GetUserSession(us.UserId);
                 }
                 userSessions.Add(us); // Then add the new one
             }
@@ -323,15 +325,16 @@ namespace BankingIntegration
         }
 
         // Authentication Functions
-        private UserSession UserLogin(UserLoginRequest ulr)
+        private ClientSession ClientLogin(UserLoginRequest ulr)
         {
-            UserSession userSession = new UserSession()
+            ClientSession clientSession = new ClientSession()
             {
-                UserID = 42
+                UserId = 42,
+                ClientId = 35
             };
-            // UserSession userSession = MakeCoreRequest<UserSession>("/v1/login", ulr.AsJsonString());
-            if (userSession.UserID == -1) throw new NoSuchUserSessionException();
-            return userSession;
+            // ClientSession clientSession = MakeCoreRequest<UserSession>("/v1/login", ulr.AsJsonString());
+            if (clientSession.UserId == -1) throw new NoSuchUserSessionException();
+            return clientSession;
         }
 
         // Client Functions
@@ -342,7 +345,7 @@ namespace BankingIntegration
                 ClientCreationAttempt cca = new ClientCreationAttempt(ccr, userId);
 
                 UserSession data = CoreRequestOrQueue<UserSession>("/v1/createClient", cca.AsJsonString());
-                return data.UserID;
+                return data.UserId;
             }
             catch (CoreTimeoutException e)
             {
