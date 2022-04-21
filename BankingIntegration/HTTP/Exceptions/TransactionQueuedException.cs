@@ -26,7 +26,7 @@ namespace BankingIntegration
 
         public override ProcessedResponse ToResponse()
         {
-            throw new NotImplementedException();
+            return IntegrationServer.transactionQueuedResponse;
         }
     }
 }

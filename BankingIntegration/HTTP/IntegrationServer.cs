@@ -1,5 +1,6 @@
 ﻿using BankingIntegration.BankModel;
 using BankingIntegration.BankModel.General;
+using BankingIntegration.BankModel.General.Responses;
 using BankingIntegration.HTTP;
 using System;
 using System.Collections.Generic;
@@ -60,7 +61,8 @@ namespace BankingIntegration
             }
             catch (CoreTimeoutException e)
             {
-                queuedRequests.Add(new QueuedRequest() {
+                queuedRequests.Add(new QueuedRequest()
+                {
                     Method = method,
                     Contents = contents,
                     Path = path,
@@ -69,7 +71,6 @@ namespace BankingIntegration
                 throw new TransactionQueuedException();
             }
         }
-
 
         public static List<UserSession> userSessions = new List<UserSession>();
         public static List<QueuedRequest> queuedRequests = new List<QueuedRequest>();
@@ -84,6 +85,7 @@ namespace BankingIntegration
 
         public IntegrationServer(int preferredPort = 8081) : base(preferredPort)
         {
+            AddUserSession(new UserSession() { SessionToken = "123456", UserId = 5 });
             OnCoreUp += DoQueuedRequests;
 
             handledRoutes.Add(new Route("/v1/ping")
@@ -101,74 +103,72 @@ namespace BankingIntegration
                 {
                     // Confirm credentials
                     UserLoginRequest ulr = JsonSerializer.Deserialize<UserLoginRequest>(reqBody);
-                    ClientSession clientSession = ClientLogin(ulr);
 
-                    UserSession existingSession = GetUserSession(clientSession.UserId); // Return an already existing session by default
-                    if (IsUserSessionValid(existingSession))
+                    if (ulr.ServiceId == 1) // If it comes from web
                     {
-
-                        RefreshUserSession(existingSession);
+                        return LoginInternetBanking(ulr);
                     }
                     else
                     {
-                        DateTime currentTime = DateTime.Now;
-                        clientSession = new ClientSession()
-                        {
-                            UserId = clientSession.UserId,
-                            ClientId = clientSession.ClientId,
-                            SessionToken = GenerateSessionToken(ulr),
-                            SessionStart = currentTime,
-                            LastRequest = currentTime,
-                            Service = ulr.ServiceId
-                        };
-                        AddUserSession(existingSession);
+                        return LoginCaja(ulr);
                     }
-                    clientSession.StatusCode = 200;
-                    return clientSession;
+
                 }
             });
             handledRoutes.Add(new Route("/v1/createClient")
             {
                 DoPost = (reqBody) =>
                 {
-                    // Confirm user session
-                    ClientCreationRequest ccr = JsonSerializer.Deserialize<ClientCreationRequest>(reqBody);
-                    UserSession userSession = GetUserSession(ccr.SessionToken);
-
-                    ProcessedResponse response = new ProcessedResponse()
-                    {
-                        Contents = $"{{\"UserId\": {CreateNewClient(ccr, userSession.UserId)}}}",
-                        StatusCode = 200
-                    };
-                    return response;
-
+                    return DefaultTransaction<ClientCreationRequest, ClientCreationAttempt, BankClient>(reqBody, "/v1/createClient", true);
                 }
             });
             handledRoutes.Add(new Route("/v1/getClient")
             {
                 DoPost = (reqBody) =>
                 {
-                    ClientInfoRequest cir = JsonSerializer.Deserialize<ClientInfoRequest>(reqBody);
-                    UserSession us = GetUserSession(cir.SessionToken);
-                    return GetBankClient(cir, us.UserId);
+                    return DefaultTransaction<ClientInfoRequest, ClientInfoAttempt, BankClient>(reqBody, "/v1/getClient");
                 }
             });
             handledRoutes.Add(new Route("/v1/updateClient")
             {
                 DoPost = (reqBody) =>
                 {
-                    ClientEditionRequest cer = JsonSerializer.Deserialize<ClientEditionRequest>(reqBody);
-                    UserSession us = GetUserSession(cer.SessionToken);
-                    return EditBankClient(cer, us.UserId);
+                    return DefaultTransaction<ClientEditionRequest, ClientEditionAttempt, BankClient>(reqBody, "/v1/updateClient", true);
                 }
             });
             handledRoutes.Add(new Route("/v1/removeClient")
             {
                 DoPost = (reqBody) =>
                 {
-                    ClientDeletionRequest cdr = JsonSerializer.Deserialize<ClientDeletionRequest>(reqBody);
-                    UserSession us = GetUserSession(cdr.SessionToken);
-                    return DeleteBankClient(cdr, us.UserId);
+                    return DefaultTransaction<ClientDeletionRequest, ClientDeletionAttempt, BankClient>(reqBody, "/v1/removeClient", true);
+                }
+            });
+            handledRoutes.Add(new Route("/v1/createAccount")
+            {
+                DoPost = (reqBody) =>
+                {
+                    return DefaultTransaction<AccountCreationRequest, AccountCreationAttempt, BankAccount>(reqBody, "/v1/createAccount", true);
+                }
+            });
+            handledRoutes.Add(new Route("/v1/getAccount")
+            {
+                DoPost = (reqBody) =>
+                {
+                    return DefaultTransaction<AccountByIdRequest, AccountByIdAttempt, BankAccount>(reqBody, "/v1/getAccount");
+                }
+            });
+            handledRoutes.Add(new Route("/v1/getAccounts")
+            {
+                DoPost = (reqBody) =>
+                {
+                    return DefaultTransaction<AccountsByClientRequest, AccountsByClientAttempt, BList<BankAccount>>(reqBody, "/v1/getAccounts");
+                }
+            });
+            handledRoutes.Add(new Route("/v1/removeAccount")
+            {
+                DoPost = (reqBody) =>
+                {
+                    return DefaultTransaction<AccountDeletionRequest, AccountDeletionAttempt, BankAccount>(reqBody, "/v1/removeAccount", true);
                 }
             });
 
@@ -176,7 +176,6 @@ namespace BankingIntegration
             // Route createAdminUser
             // Route updateUser
 
-            // Route createAccount
             // Route withdrawFromAccount
             // Route removeAccount
             // Route getAccountsByClient
@@ -192,8 +191,36 @@ namespace BankingIntegration
             // Route removeBeneficiario
 
             // Route createTransaction
-            // Route getTransactionHistoryByAccount            
+            // Route getTransactionHistoryByAccount
+
+            handledRoutes.Add(new Route("/test/clientStructure")
+            {
+                DoPost = (reqBody) =>
+                {
+                    return new BankClient();
+                }
+            });
+            handledRoutes.Add(new Route("/test/accountStructure")
+            {
+                DoPost = (reqBody) =>
+                {
+                    return new BankAccount();
+                }
+            });
+
+            handledRoutes.Add(new Route("/test/accountsStructure")
+            {
+                DoPost = (reqBody) =>
+                {
+                    BList<BankAccount> bas = new BList<BankAccount>();
+                    bas.Add(new BankAccount());
+                    bas.Add(new BankAccount());
+                    bas.Add(new BankAccount());
+                    return bas;
+                }
+            });
         }
+
 
         // Encryption Functions
         private static string MakeErrorMessage(string message, ErrorCode code)
@@ -230,10 +257,9 @@ namespace BankingIntegration
             {
                 return us.SessionToken == sessionToken;
             });
-            if (us == null) throw new NoSuchUserSessionException(sessionToken);
             return us;
         }
-        private static UserSession? GetUserSession(int userId)
+        private static UserSession GetUserSession(int userId)
         {
             UserSession us = userSessions.Find((us) =>
             {
@@ -287,8 +313,103 @@ namespace BankingIntegration
                     DeleteUserSession(oldUserSession);
                     oldUserSession = GetUserSession(us.UserId);
                 }
+                RefreshUserSession(us);
                 userSessions.Add(us); // Then add the new one
             }
+        }
+
+        // Account Functions
+        private static BankAccount CreateBankAccount(AccountCreationRequest acr)
+        {
+            if (IsUserSessionValid(acr.SessionToken))
+            {
+                return CoreRequestOrQueue<BankAccount>("/v1/createAccount", acr.BankAccountInfo.AsJsonString());
+            }
+            else
+            {
+                throw new NoSuchUserSessionException();
+            }
+        }
+
+        private static BankAccount GetBankAccount(AccountByIdRequest abir)
+        {
+            if (IsUserSessionValid(abir.SessionToken))
+            {
+                return MakeCoreRequest<BankAccount>("/v1/getAccount", abir.AsJsonString());
+            }
+            else
+            {
+                throw new NoSuchUserSessionException();
+            }
+        }
+
+        private static BList<BankAccount> GetBankAccounts(AccountsByClientRequest abcr)
+        {
+            if (IsUserSessionValid(abcr.SessionToken))
+            {
+                return MakeCoreRequest<BList<BankAccount>>("/v1/getAccount", abcr.AsJsonString());
+            }
+            else
+            {
+                throw new NoSuchUserSessionException();
+            }
+        }
+
+        private static T DefaultTransaction<A,B, T>(string reqBody, string path, bool queue = false) where A : Sessioned, IAttemptable<B> where T : IResponsible where B : BankSerializable
+        {
+            A inputValue = JsonSerializer.Deserialize<A>(reqBody);
+            UserSession us = GetUserSession(inputValue.SessionToken);
+            if (IsUserSessionValid(us))
+            {
+                if (queue) {
+                    return CoreRequestOrQueue<T>(path, inputValue.ToAttempt(us.UserId).AsJsonString());
+                }
+                else
+                {
+                    return MakeCoreRequest<T>(path, inputValue.ToAttempt(us.UserId).AsJsonString());
+                }
+            } else
+            {
+                throw new NoSuchUserSessionException();
+            }
+        }
+
+        private ClientSession GenerateClientSession(int userId, int clientId, UserLoginRequest ulr)
+        {
+            DateTime currentTime = DateTime.Now;
+            ClientSession clientSession = new ClientSession()
+            {
+                UserId = userId,
+                ClientId = clientId,
+                SessionToken = GenerateSessionToken(ulr),
+                SessionStart = currentTime,
+                LastRequest = currentTime,
+                Service = ulr.ServiceId
+            };
+            clientSession.StatusCode = 200;
+            AddUserSession(clientSession);
+            return clientSession;
+        }
+        private IResponsible LoginInternetBanking(UserLoginRequest ulr)
+        {
+            ClientSession clientSession = ClientLogin(ulr);
+
+            UserSession existingSession = GetUserSession(clientSession.UserId); // Return an already existing session by default
+            if (IsUserSessionValid(existingSession))
+            {
+
+                RefreshUserSession(existingSession);
+            }
+            else
+            {
+                clientSession = GenerateClientSession(clientSession.UserId, clientSession.ClientId, ulr);
+            }
+            return clientSession;
+        }
+        private IResponsible LoginCaja(UserLoginRequest ulr)
+        {
+
+            return new UserSession();
         }
 
         // <> Core Functions <>
@@ -313,7 +434,8 @@ namespace BankingIntegration
                 {
                     CoreRequestOrQueue<dynamic>(qr.Path, qr.Contents, qr.Method);
                     qr.Tried = true;
-                } catch (TransactionQueuedException e)
+                }
+                catch (TransactionQueuedException e)
                 {
                     // It will be retried anyways
                 }
