@@ -21,7 +21,7 @@ namespace BankingIntegration
         public static int defaultRequestTimeout = 1000;
         public static int sessionTimeoutMin = 15;
 
-        private static dynamic? MakeCoreRequest(string path, string contents, HttpMethod method = HttpMethod.POST)
+        private static T MakeCoreRequest<T>(string path, string contents, HttpMethod method = HttpMethod.POST)
         {
             UriBuilder builder = new UriBuilder(coreUri);
             builder.Path = path;
@@ -48,15 +48,15 @@ namespace BankingIntegration
             if (!TResponseMessage.Wait(defaultRequestTimeout)) throw new CoreTimeoutException();
             Task<string> TResultString = TResponseMessage.Result.Content.ReadAsStringAsync();
             if (!TResultString.Wait(defaultRequestTimeout)) throw new CoreTimeoutException();
-            return JsonSerializer.Deserialize<dynamic>(TResultString.Result);
+            return JsonSerializer.Deserialize<T>(TResultString.Result);
         }
 
         // Returns the result of the core request or -1 if the request was sent to queue.
-        private static dynamic CoreRequestOrQueue(string path, string contents, HttpMethod method = HttpMethod.POST)
+        private static T CoreRequestOrQueue<T>(string path, string contents, HttpMethod method = HttpMethod.POST)
         {
             try
             {
-                return MakeCoreRequest(path, contents, method);
+                return MakeCoreRequest<T>(path, contents, method);
             }
             catch (CoreTimeoutException e)
             {
@@ -101,7 +101,7 @@ namespace BankingIntegration
                 {
                     // Confirm credentials
                     UserLoginRequest ulr = JsonSerializer.Deserialize<UserLoginRequest>(reqBody);
-                    int userId = CoreGetUserId(ulr);
+                    int userId = UserLogin(ulr).UserID;
 
                     UserSession returnedSession = GetUserSession(userId); // Return an already existing session by default
                     if (IsUserSessionValid(returnedSession))
@@ -295,7 +295,7 @@ namespace BankingIntegration
         {
             try
             {
-                MakeCoreRequest("ping", "");
+                MakeCoreRequest<dynamic>("ping", "");
                 OnCoreUp();
                 return true;
             }
@@ -310,7 +310,7 @@ namespace BankingIntegration
             {
                 try
                 {
-                    CoreRequestOrQueue(qr.Path, qr.Contents, qr.Method);
+                    CoreRequestOrQueue<dynamic>(qr.Path, qr.Contents, qr.Method);
                     qr.Tried = true;
                 } catch (TransactionQueuedException e)
                 {
@@ -324,12 +324,15 @@ namespace BankingIntegration
         }
 
         // Authentication Functions
-        private int CoreGetUserId(UserLoginRequest ulr)
+        private UserSession UserLogin(UserLoginRequest ulr)
         {
-            string resultString = MakeCoreRequest("/v1/login", ulr.AsJsonString());
-            dynamic data = JsonSerializer.Deserialize<dynamic>(resultString);
-            if (data.UserId == -1) throw new NoSuchUserSessionException();
-            return data.UserId;
+            UserSession userSession = new UserSession()
+            {
+                UserID = 42
+            };
+            // UserSession userSession = MakeCoreRequest<UserSession>("/v1/login", ulr.AsJsonString());
+            if (userSession.UserID == -1) throw new NoSuchUserSessionException();
+            return userSession;
         }
 
         // Client Functions
@@ -339,8 +342,8 @@ namespace BankingIntegration
             {
                 ClientCreationAttempt cca = new ClientCreationAttempt(ccr, userId);
 
-                dynamic data = CoreRequestOrQueue("/v1/createClient", cca.AsJsonString());
-                return data.UserId;
+                UserSession data = CoreRequestOrQueue<UserSession>("/v1/createClient", cca.AsJsonString());
+                return data.UserID;
             }
             catch (CoreTimeoutException e)
             {
@@ -351,7 +354,7 @@ namespace BankingIntegration
         private BankClient GetBankClient(ClientInfoRequest cir, int requesterId)
         {
             ClientInfoAttempt cca = new ClientInfoAttempt(cir, requesterId);
-            BankClient bankClient = MakeCoreRequest("/v1/getClient", cca.AsJsonString());
+            BankClient bankClient = MakeCoreRequest<BankClient>("/v1/getClient", cca.AsJsonString());
             return bankClient;
         }
 
@@ -359,7 +362,7 @@ namespace BankingIntegration
         private BankClient EditBankClient(ClientEditionRequest cer, int requesterId)
         {
             ClientEditionAttempt cia = new ClientEditionAttempt(cer, requesterId);
-            BankClient data = CoreRequestOrQueue("/v1/updateClient", cia.AsJsonString());
+            BankClient data = CoreRequestOrQueue<BankClient>("/v1/updateClient", cia.AsJsonString());
             return data;
         }
 
@@ -367,7 +370,7 @@ namespace BankingIntegration
         private BankClient DeleteBankClient(ClientDeletionRequest cdr, int requesterId)
         {
             ClientDeletionAttempt cda = new ClientDeletionAttempt(cdr, requesterId);
-            BankClient data = CoreRequestOrQueue("/v1/removeClient", cda.AsJsonString());
+            BankClient data = CoreRequestOrQueue<BankClient>("/v1/removeClient", cda.AsJsonString());
             return data;
         }
     }
