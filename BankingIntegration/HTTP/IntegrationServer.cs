@@ -237,7 +237,6 @@ namespace BankingIntegration
             {
                 return us.UserID == userId;
             });
-            if (us == null) throw new NoSuchUserSessionException($"UserId: {userId}");
             return us;
 
         }
