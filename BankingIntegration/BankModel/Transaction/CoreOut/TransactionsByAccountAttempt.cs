@@ -15,7 +15,7 @@ namespace BankingIntegration.BankModel.Transaction.CoreOut
         [JsonPropertyName("AccountNumber")]
         public int AccountNumber { get; set; }
 
-        public string ActionName => throw new NotImplementedException();
+        public string ActionName => "TransaccionesPorCuenta";
 
         public TransactionsByAccountAttempt(TransactionsByAccountRequest tbar, int initiatorId)
         {

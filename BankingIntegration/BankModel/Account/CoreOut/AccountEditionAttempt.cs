@@ -12,16 +12,13 @@ namespace BankingIntegration.BankModel
         public int InitiatorId { get; set; }
         [JsonPropertyName("Account")]
         public BankAccount BankAccountInfo { get; set; }
-        [JsonPropertyName("RequestId")]
-        public string RequestId { get; set; }
 
-        public string ActionName => throw new NotImplementedException();
+        public string ActionName => "editarCuenta";
 
         public AccountEditionAttempt(AccountEditionRequest aer, int initiatorId)
         {
             InitiatorId = initiatorId;
             BankAccountInfo = aer.BankAccountInfo;
-            RequestId = aer.RequestId;
         }
 
         public string AsJsonString()

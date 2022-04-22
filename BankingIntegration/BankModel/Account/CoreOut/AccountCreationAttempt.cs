@@ -13,7 +13,7 @@ namespace BankingIntegration.BankModel
         [JsonPropertyName("Account")]
         public BankAccount BankAccountInfo { get; set; }
 
-        public string ActionName => "";
+        public string ActionName => "CrearCuenta";
 
         public AccountCreationAttempt(AccountCreationRequest acr, int initiatorId)
         {
