@@ -21,6 +21,9 @@ namespace BankingIntegration.BankModel.Transaction
         [JsonPropertyName("TransactionType")] // 1 es Deposito, 2 retiro, 3 cuentas tercero
         public int TransactionType { get; set; }
 
+        [JsonPropertyName("ProcessedDate")]
+        public DateTime ProcessedDate { get; set; } = DateTime.Now;
+
         [JsonPropertyName("Amount")]
         public float Amount { get; set; }
         public int StatusCode { get; set; }
