@@ -12,8 +12,6 @@ namespace BankingIntegration.BankModel
         public int InitiatorId { get; set; }
         [JsonPropertyName("Account")]
         public BankAccount BankAccountInfo { get; set; }
-        [JsonPropertyName("RequestId")]
-        public string RequestId { get; set; }
 
         public string ActionName => "";
 
@@ -21,7 +19,6 @@ namespace BankingIntegration.BankModel
         {
             InitiatorId = initiatorId;
             BankAccountInfo = acr.BankAccountInfo;
-            RequestId = acr.RequestId;
         }
 
         public string AsJsonString()

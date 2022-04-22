@@ -13,8 +13,6 @@ namespace BankingIntegration.BankModel
         public string SessionToken { get; set; }
         [JsonPropertyName("Account")] // Client ID is inside the account
         public BankAccount BankAccountInfo { get; set; }
-        [JsonPropertyName("RequestId")]
-        public string RequestId { get; set; }
 
         public string AsJsonString()
         {
