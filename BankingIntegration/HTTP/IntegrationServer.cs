@@ -148,7 +148,14 @@ namespace BankingIntegration
             // Route updateUser
 
             // Route createLoan
-            // Route payLoan
+            handledRoutes.Add(new Route("/v1/payLoan")
+            {
+                DoPost = (reqBody) =>
+                {
+                    return SessionedTransaction<PayLoanRequest, PayLoanAttempt, BankLoan>(reqBody);
+                }
+            });
+
             // Route removeLoan
             handledRoutes.Add(new Route("/v1/getLoansByClient")
             {
