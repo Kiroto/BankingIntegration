@@ -151,11 +151,6 @@ namespace BankingIntegration
                 }
             });
 
-            // TODO:
-            // Route createAdminUser
-            // Route updateUser
-
-            // Route createLoan
             handledRoutes.Add(new Route("/v1/payLoan")
             {
                 DoPost = (reqBody) =>
@@ -164,7 +159,6 @@ namespace BankingIntegration
                 }
             });
 
-            // Route removeLoan
             handledRoutes.Add(new Route("/v1/getLoansByClient")
             {
                 DoPost = (reqBody) =>
@@ -172,8 +166,6 @@ namespace BankingIntegration
                     return SessionedTransaction<LoansByClientRequest, LoansByClientAttempt, BList<BankLoan>>(reqBody);
                 }
             });
-
-
             handledRoutes.Add(new Route("/v1/addBeneficiario")
             {
                 DoPost = (reqBody) =>
@@ -182,7 +174,6 @@ namespace BankingIntegration
                 }
             });
 
-            // Route updateBeneficiario
             handledRoutes.Add(new Route("/v1/getBeneficiarioByClient")
             {
                 DoPost = (reqBody) =>
@@ -190,9 +181,6 @@ namespace BankingIntegration
                     return SessionedTransaction<BeneficiaryByClientRequest, BeneficiaryByClientAttempt, BList<BankBeneficiary>>(reqBody);
                 }
             });
-            // Route removeBeneficiario
-
-
             handledRoutes.Add(new Route("/v1/insertTransaction") // Can add or withdraw here, too
             {
                 DoPost = (reqBody) =>
@@ -262,11 +250,12 @@ namespace BankingIntegration
         // Builds contents to make core requests
         private static StringContent buildContents(IAttempt attempt)
         {
+            string json = attempt.AsJsonString();
             string content = @$"<?xml version=""1.0"" encoding=""utf-8""?>
             <soap:Envelope xmlns:xsi=""http://www.w3.org/2001/XMLSchema-instance"" xmlns:xsd=""http://www.w3.org/2001/XMLSchema"" xmlns:soap=""http://schemas.xmlsoap.org/soap/envelope/"">
               <soap:Body>
                 <{attempt.ActionName} xmlns=""{CoreNamespace}"">
-                  <json>{attempt.AsJsonString()}</json>
+                  <json>{json}</json>
                 </{attempt.ActionName}>
               </soap:Body>
             </soap:Envelope>";
@@ -335,7 +324,7 @@ namespace BankingIntegration
         }
 
         // Encryption Functions
-        private static string MakeErrorMessage(string message, ErrorCode code)
+        public static string MakeErrorMessage(string message, ErrorCode code)
         {
             ErrorMesage em = new ErrorMesage();
             em.Code = code;

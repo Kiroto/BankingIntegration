@@ -1,4 +1,5 @@
-﻿using BankingIntegration.HTTP;
+﻿using BankingIntegration.BankModel;
+using BankingIntegration.HTTP;
 using BankingIntegration.HTTP.Exceptions;
 using System;
 using System.Runtime.Serialization;
@@ -26,7 +27,7 @@ namespace BankingIntegration
 
         public override ProcessedResponse ToResponse()
         {
-            return IntegrationServer.coreEndpointNotReachedResponse;
+            return new ProcessedResponse() { StatusCode = 500, Contents = IntegrationServer.MakeErrorMessage("The transaction encountered an error in the core", ErrorCode.CORE_ERROR) };
         }
     }
 }

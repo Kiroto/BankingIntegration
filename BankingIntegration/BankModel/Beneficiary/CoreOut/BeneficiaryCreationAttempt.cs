@@ -16,7 +16,7 @@ namespace BankingIntegration.BankModel
         [JsonPropertyName("Beneficiary")]
         public BankBeneficiary Bene { get; set; }
 
-        public string ActionName => throw new NotImplementedException();
+        public string ActionName => "InsertarBeneficiario";
 
         public BeneficiaryCreationAttempt(BeneficiaryCreationRequest bcr, int initiatorId)
         {

@@ -14,7 +14,7 @@ namespace BankingIntegration.BankModel.Beneficiary
         [JsonPropertyName("ClientId")]
         public int ClientId { get; set; }
         [JsonPropertyName("BeneficiaryAccountNumber")] // La cuenta del beneficiario reistrado
-        public string AccountNumber { get; set; }
+        public int BeneficiaryAccountNumber { get; set; }
         [JsonPropertyName("Alias")]
         public string Alias { get; set; }
         [JsonPropertyName("RegisterDate")]
