@@ -1,4 +1,6 @@
-﻿using BankingIntegration.HTTP;
+﻿using BankingIntegration.BankModel.Employee;
+using BankingIntegration.BankModel.General;
+using BankingIntegration.HTTP;
 using System;
 using System.Collections.Generic;
 using System.Text;
@@ -15,6 +17,13 @@ namespace BankingIntegration.BankModel
         public void FillWith(UserSession us)
         {
             UserId = us.UserId;
+        }
+
+        public EmployeeSession(BankEmployee be)
+        {
+            UserId = be.User.Id;
+            EmployeeId = be.Id;
+            SessionToken = sha256_hash(be.User.Username + be.Id + DateTime.Now);
         }
     }
 }

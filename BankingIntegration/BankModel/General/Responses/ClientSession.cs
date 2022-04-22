@@ -16,5 +16,10 @@ namespace BankingIntegration.BankModel
         {
             UserId = us.UserId;
         }
+
+        public ClientSession(BankClient bc)
+        {
+            SessionToken = sha256_hash(bc.User.Username + bc.Id + DateTime.Now);
+        }
     }
 }
