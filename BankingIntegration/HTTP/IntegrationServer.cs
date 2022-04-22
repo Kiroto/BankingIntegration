@@ -67,20 +67,28 @@ namespace BankingIntegration
                 {
                     // Confirm credentials
                     UserLoginRequest ulr = JsonSerializer.Deserialize<UserLoginRequest>(reqBody);
-                    UserSession us;
-                    if (ulr.ServiceId == 1) // If it comes from web
+                    try
                     {
-                        BankClient authenticatedClient = UnsessionedTransaction<UserLoginRequest, UserLoginRequest, BankClient>(reqBody);
-                        us = new ClientSession(authenticatedClient);
-                        AddUserSession(us);
+                        if (ulr.ServiceId == 1) // If it comes from web
+                        {
+                            BankClient authenticatedClient = UnsessionedTransaction<UserLoginRequest, UserLoginRequest, BankClient>(reqBody);
+                            ClientSession cs = new ClientSession(authenticatedClient);
+                            AddUserSession(cs);
+
+                            return cs;
+                        }
+                        else
+                        {
+                            BankEmployee authenticatedEmployee = UnsessionedTransaction<UserLoginRequest, UserLoginRequest, BankEmployee>(reqBody);
+                            EmployeeSession es = new EmployeeSession(authenticatedEmployee);
+                            AddUserSession(es);
+                            return es;
+                        }
                     }
-                    else
+                    catch (CoreDidntLikeThatException e)
                     {
-                        BankEmployee authenticatedEmployee = UnsessionedTransaction<UserLoginRequest, UserLoginRequest, BankEmployee>(reqBody);
-                        us = new EmployeeSession(authenticatedEmployee);
-                        AddUserSession(us);
+                        throw new NoSuchAccountException();
                     }
-                    return us;
                 }
             });
 
@@ -280,6 +288,7 @@ namespace BankingIntegration
             if (!TResultString.Wait(defaultRequestTimeout)) throw new CoreTimeoutException();
             string xmlResult = TResultString.Result;
             string jsonResult = GetJsonFromXml(xmlResult, contents.ActionName);
+            if (jsonResult == "null") throw new CoreDidntLikeThatException();
             return JsonSerializer.Deserialize<T>(jsonResult);
         }
         // Returns the result of the core request or -1 if the request was sent to queue.
@@ -332,7 +341,7 @@ namespace BankingIntegration
         {
             return us != null && us.LastRequest < DateTime.Now.AddMinutes(sessionTimeoutMin);
         }
-        private bool RefreshUserSession(UserSession us)
+        private static bool RefreshUserSession(UserSession us)
         {
             if (IsUserSessionValid(us))
             {
@@ -351,6 +360,7 @@ namespace BankingIntegration
             UserSession? oldUserSession = GetUserSession(us.UserId);
             if (IsUserSessionValid(oldUserSession)) // If a session for that user is still valid, just refresh it
             {
+                us.SessionToken = oldUserSession.SessionToken;
                 RefreshUserSession(oldUserSession);
             }
             else
@@ -386,6 +396,7 @@ namespace BankingIntegration
             UserSession us = GetUserSession(inputValue.SessionToken);
             if (IsUserSessionValid(us))
             {
+                RefreshUserSession(us);
                 if (queue)
                 {
                     return CoreRequestOrQueue<T>(inputValue.ToAttempt(us.UserId));

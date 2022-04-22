@@ -12,13 +12,10 @@ namespace BankingIntegration.BankModel
         [JsonPropertyName("ClientId")]
         public int ClientId { get; set; }
 
-        public void FillWith(UserSession us)
-        {
-            UserId = us.UserId;
-        }
-
         public ClientSession(BankClient bc)
         {
+            ClientId = bc.Id;   
+            UserId = bc.User.Id;
             SessionToken = sha256_hash(bc.User.Username + bc.Id + DateTime.Now);
         }
     }

@@ -35,10 +35,10 @@ namespace BankingIntegration.BankModel
         public string SessionToken { get; set; }
 
         // When this token last made its request
-        public DateTime LastRequest;
+        public DateTime LastRequest = DateTime.Now;
         
         // When the session started
-        public DateTime SessionStart;
+        public DateTime SessionStart = DateTime.Now;
 
         // The requesting service
         public int Service;
