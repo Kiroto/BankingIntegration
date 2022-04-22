@@ -15,7 +15,7 @@ namespace BankingIntegration.BankModel
         [JsonPropertyName("ClientId")]
         public int ClientId { get; set; }
 
-        public string ActionName => throw new NotImplementedException();
+        public string ActionName => "BuscarPrestamosPorCliente";
 
         public LoansByClientAttempt(LoansByClientRequest bbcr, int initiatorId)
         {

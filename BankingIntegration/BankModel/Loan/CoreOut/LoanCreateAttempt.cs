@@ -16,7 +16,7 @@ namespace BankingIntegration.BankModel
         [JsonPropertyName("Loan")]
         public BankLoan Loan { get; set; }
 
-        public string ActionName => throw new NotImplementedException();
+        public string ActionName => "CrearPrestamo";
 
         public LoanCreateAttempt(LoanCreateRequest bbcr, int initiatorId)
         {

@@ -19,7 +19,7 @@ namespace BankingIntegration.BankModel
         [JsonPropertyName("PayAmount")]
         public float PayAmount { get; set; }
 
-        public string ActionName => throw new NotImplementedException();
+        public string ActionName => "PagarPrestamo";
 
         public PayLoanAttempt(PayLoanRequest plr, int initiatorId)
         {
