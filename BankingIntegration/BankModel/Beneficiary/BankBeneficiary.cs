@@ -13,7 +13,7 @@ namespace BankingIntegration.BankModel.Beneficiary
         public int Id { get; set; }
         [JsonPropertyName("ClientId")]
         public int ClientId { get; set; }
-        [JsonPropertyName("AccountNumber")]
+        [JsonPropertyName("BeneficiaryAccountNumber")]
         public string AccountNumber { get; set; }
         [JsonPropertyName("Alias")]
         public string Alias { get; set; }

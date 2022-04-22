@@ -152,7 +152,7 @@ namespace BankingIntegration
             {
                 DoPost = (reqBody) =>
                 {
-                    return SessionedTransaction<PayLoanRequest, PayLoanAttempt, BankLoan>(reqBody);
+                    return SessionedTransaction<PayLoanRequest, PayLoanAttempt, BankLoan>(reqBody, true);
                 }
             });
 
