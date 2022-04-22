@@ -1,27 +1,24 @@
-﻿using BankingIntegration.BankModel.General;
-using BankingIntegration.HTTP;
+﻿using BankingIntegration.HTTP;
 using System;
 using System.Collections.Generic;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace BankingIntegration.BankModel
+namespace BankingIntegration.BankModel.Beneficiary
 {
-    class BankAccount : BankSerializable, IResponsible
+    class BankBeneficiary : BankSerializable, IResponsible
     {
-        [JsonPropertyName("AccountNumber")]
+        [JsonPropertyName("Id")]
         public int Id { get; set; }
         [JsonPropertyName("ClientId")]
         public int ClientId { get; set; }
-        [JsonPropertyName("State")]
-        public int State { get; set; }
-        [JsonPropertyName("Balance")]
-        public float Balance { get; set; }
+        [JsonPropertyName("AccountNumber")]
+        public string AccountNumber { get; set; }
+        [JsonPropertyName("Alias")]
+        public string Alias { get; set; }
         [JsonPropertyName("RegisterDate")]
         public DateTime RegisterDate { get; set; }
-        [JsonPropertyName("AccountType")]
-        public int AccountType { get; set; }
 
         public int StatusCode { get; set; }
 

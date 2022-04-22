@@ -1,4 +1,6 @@
-﻿using System;
+﻿using BankingIntegration.BankModel.Beneficiary;
+using BankingIntegration.BankModel.Beneficiary.In;
+using System;
 using System.Collections.Generic;
 using System.Text;
 using System.Text.Json;
@@ -6,22 +8,20 @@ using System.Text.Json.Serialization;
 
 namespace BankingIntegration.BankModel
 {
-    class AccountEditionAttempt : IAttempt, Authenticated // Represents outgoing client edition attempts
+    class BeneficiaryCreationAttempt : Authenticated, IAttempt // Represents incoming client information requests
     {
+
         [JsonPropertyName("InitiatorId")]
         public int InitiatorId { get; set; }
-        [JsonPropertyName("Account")]
-        public BankAccount BankAccountInfo { get; set; }
-        [JsonPropertyName("RequestId")]
-        public string RequestId { get; set; }
+        [JsonPropertyName("Beneficiary")]
+        public BankBeneficiary Bene { get; set; }
 
         public string ActionName => throw new NotImplementedException();
 
-        public AccountEditionAttempt(AccountEditionRequest aer, int initiatorId)
+        public BeneficiaryCreationAttempt(BeneficiaryCreationRequest bcr, int initiatorId)
         {
             InitiatorId = initiatorId;
-            BankAccountInfo = aer.BankAccountInfo;
-            RequestId = aer.RequestId;
+            Bene = bcr.Bene;
         }
 
         public string AsJsonString()
