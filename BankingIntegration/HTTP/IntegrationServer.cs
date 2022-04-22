@@ -257,8 +257,6 @@ namespace BankingIntegration
                     return new ProcessedResponse() { Contents = new ClientCreationAttempt(new ClientCreationRequest() { BankClientInfo = new BankClient()}, 0).AsJsonString() };
                 }
             });
-
-            
         }
 
         // Builds contents to make core requests

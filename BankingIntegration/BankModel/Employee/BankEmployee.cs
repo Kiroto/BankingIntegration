@@ -10,7 +10,7 @@ namespace BankingIntegration.BankModel.Employee
 {
     class BankEmployee : BankSerializable, IResponsible
     {
-        [JsonPropertyName("Id")]
+        [JsonPropertyName("ID")]
         public int Id { get; set; }
         [JsonPropertyName("User")]
         public BankUser User { get; set; }
