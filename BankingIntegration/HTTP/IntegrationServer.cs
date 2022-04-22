@@ -233,6 +233,22 @@ namespace BankingIntegration
                     return bas;
                 }
             });
+
+            handledRoutes.Add(new Route("/test/sha256")
+            {
+                DoPost = (reqBody) =>
+                {
+                    return new ProcessedResponse() { Contents = UserSession.sha256_hash(reqBody)};
+                }
+            });
+
+            handledRoutes.Add(new Route("/test/transaction")
+            {
+                DoPost = (reqBody) =>
+                {
+                    return new ProcessedResponse() { Contents = new TransactionAttempt().AsJsonString() };
+                }
+            });
         }
 
         // Builds contents to make core requests

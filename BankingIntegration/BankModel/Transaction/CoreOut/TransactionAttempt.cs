@@ -13,9 +13,12 @@ namespace BankingIntegration.BankModel.Transaction.CoreOut
         public int InitiatorId { get;  set; }
 
         [JsonPropertyName("Transaction")]
-        public Transaction Tran { get; set; }
+        public Transaction Tran { get; set; } = new Transaction();
 
         public string ActionName { get; set; } = "InsertarTransaccion";
+
+
+        public TransactionAttempt() { }
 
         public TransactionAttempt(TransactionRequest tr, int initiatorId)
         {
