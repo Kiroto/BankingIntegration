@@ -9,7 +9,7 @@ using System.Text.Json.Serialization;
 
 namespace BankingIntegration.BankModel
 {
-    class EmployeeSession : UserSession
+    class EmployeeSession : UserSession, BankSerializable, IResponsible
     {
         [JsonPropertyName("EmployeeId")]
         public int EmployeeId { get; set; }
@@ -24,6 +24,20 @@ namespace BankingIntegration.BankModel
             UserId = be.User.Id;
             EmployeeId = be.Id;
             SessionToken = sha256_hash(be.User.Username + be.Id + DateTime.Now);
+        }
+
+        public string AsJsonString()
+        {
+            return JsonSerializer.Serialize(this);
+        }
+
+        public ProcessedResponse buildResponse()
+        {
+            return new ProcessedResponse()
+            {
+                Contents = AsJsonString(),
+                StatusCode = StatusCode
+            };
         }
     }
 }

@@ -7,7 +7,7 @@ using System.Text.Json.Serialization;
 
 namespace BankingIntegration.BankModel
 {
-    class ClientSession : UserSession
+    class ClientSession : UserSession, BankSerializable, IResponsible
     {
         [JsonPropertyName("ClientId")]
         public int ClientId { get; set; }
@@ -17,6 +17,20 @@ namespace BankingIntegration.BankModel
             ClientId = bc.Id;   
             UserId = bc.User.Id;
             SessionToken = sha256_hash(bc.User.Username + bc.Id + DateTime.Now);
+        }
+
+        public string AsJsonString()
+        {
+            return JsonSerializer.Serialize(this);
+        }
+
+        public ProcessedResponse buildResponse()
+        {
+            return new ProcessedResponse()
+            {
+                Contents = AsJsonString(),
+                StatusCode = StatusCode
+            };
         }
     }
 }

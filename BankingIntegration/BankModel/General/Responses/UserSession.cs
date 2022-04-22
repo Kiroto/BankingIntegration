@@ -8,7 +8,7 @@ using System.Text.Json.Serialization;
 
 namespace BankingIntegration.BankModel
 {
-    class UserSession : BankSerializable, IResponsible
+    class UserSession
     {
         public static string sha256_hash(string value)
         {
@@ -43,11 +43,6 @@ namespace BankingIntegration.BankModel
         // The requesting service
         public int Service;
 
-        public string AsJsonString()
-        {
-            return JsonSerializer.Serialize(this);
-        }
-
         public void Refresh()
         {
             LastRequest = DateTime.Now;
@@ -62,12 +57,6 @@ namespace BankingIntegration.BankModel
 
         public int StatusCode { get; set; }
 
-        public ProcessedResponse buildResponse()
-        {
-            return new ProcessedResponse() {
-                Contents = AsJsonString(),
-                StatusCode = StatusCode
-            };
-        }
+       
     }
 }

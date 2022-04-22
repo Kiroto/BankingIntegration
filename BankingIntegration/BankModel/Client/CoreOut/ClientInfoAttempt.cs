@@ -11,7 +11,7 @@ namespace BankingIntegration.BankModel
 
         [JsonPropertyName("InitiatorId")]
         public int InitiatorId { get; set; }
-        [JsonPropertyName("ID")]
+        [JsonPropertyName("ClientId")]
         public int ClientId { get; set; }
 
         public string ActionName => "BuscarClientePorID";
