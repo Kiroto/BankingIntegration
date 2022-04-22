@@ -1,6 +1,9 @@
 ﻿using BankingIntegration.BankModel;
 using BankingIntegration.BankModel.General;
 using BankingIntegration.BankModel.General.Responses;
+using BankingIntegration.BankModel.Transaction;
+using BankingIntegration.BankModel.Transaction.CoreOut;
+using BankingIntegration.BankModel.Transaction.In;
 using BankingIntegration.HTTP;
 using System;
 using System.Collections.Generic;
@@ -197,6 +200,14 @@ namespace BankingIntegration
                     return DefaultTransaction<AccountDeletionRequest, AccountDeletionAttempt, BankAccount>(reqBody, true);
                 }
             });
+            handledRoutes.Add(new Route("/v1/insertTransaction")
+            {
+                DoPost = (reqBody) =>
+                {
+                    return DefaultTransaction<TransactionRequest, TransactionAttempt, Transaction>(reqBody, true);
+                }
+            });
+
 
             // TODO:
             // Route createAdminUser
