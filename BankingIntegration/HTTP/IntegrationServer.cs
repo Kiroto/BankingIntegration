@@ -46,8 +46,9 @@ namespace BankingIntegration
             string startTag = $"<{actionName}Result>";
             string endTag = $"</{actionName}Result>";
             int jsonStart = xml.IndexOf(startTag) + startTag.Length;
-            int jsonEnd = xml.IndexOf(endTag) - jsonStart;
-            return xml.Substring(jsonStart, jsonEnd);
+            int jsonLength = xml.IndexOf(endTag) - jsonStart;
+            if (jsonLength < 0) throw new CoreEndpointNotReached();
+            return xml.Substring(jsonStart, jsonLength);
         }
 
         private static T MakeCoreRequest<T>(IAttempt contents, HttpMethod method = HttpMethod.POST)
@@ -107,6 +108,8 @@ namespace BankingIntegration
         public static readonly ProcessedResponse invalidCredentialsResponse = new ProcessedResponse() { StatusCode = 400, Contents = MakeErrorMessage("The Credentials given are not valid.", ErrorCode.CREDENTIALS_INVALID) };
         public static readonly ProcessedResponse invalidSessionResponse = new ProcessedResponse() { StatusCode = 403, Contents = MakeErrorMessage("The received session key is not valid.", ErrorCode.CREDENTIALS_INVALID) };
         public static readonly ProcessedResponse transactionQueuedResponse = new ProcessedResponse() { StatusCode = 200, Contents = MakeErrorMessage("The transaction has been queued.", ErrorCode.CORE_OFFLINE) };
+        public static readonly ProcessedResponse coreEndpointNotReachedResponse = new ProcessedResponse() { StatusCode = 500, Contents = MakeErrorMessage("The transaction couldn't reach core", ErrorCode.CORE_ERROR) };
+
 
         public delegate void CoreIsUp();
         public static event CoreIsUp OnCoreUp;
@@ -134,12 +137,13 @@ namespace BankingIntegration
 
                     if (ulr.ServiceId == 1) // If it comes from web
                     {
-                        return LoginInternetBanking(ulr);
+                        return UnsessionedTransaction<UserLoginRequest, UserLoginRequest, ClientSession>(reqBody);
                     }
                     else
                     {
-                        return LoginCaja(ulr);
+                        return UnsessionedTransaction<UserLoginRequest, UserLoginRequest, EmployeeSession>(reqBody);
                     }
+
 
                 }
             });
@@ -147,35 +151,35 @@ namespace BankingIntegration
             {
                 DoPost = (reqBody) =>
                 {
-                    return DefaultTransaction<ClientCreationRequest, ClientCreationAttempt, BankClient>(reqBody, true);
+                    return SessionedTransaction<ClientCreationRequest, ClientCreationAttempt, BankClient>(reqBody, true);
                 }
             });
             handledRoutes.Add(new Route("/v1/getClient")
             {
                 DoPost = (reqBody) =>
                 {
-                    return DefaultTransaction<ClientInfoRequest, ClientInfoAttempt, BankClient>(reqBody);
+                    return SessionedTransaction<ClientInfoRequest, ClientInfoAttempt, BankClient>(reqBody);
                 }
             });
             handledRoutes.Add(new Route("/v1/updateClient")
             {
                 DoPost = (reqBody) =>
                 {
-                    return DefaultTransaction<ClientEditionRequest, ClientEditionAttempt, BankClient>(reqBody, true);
+                    return SessionedTransaction<ClientEditionRequest, ClientEditionAttempt, BankClient>(reqBody, true);
                 }
             });
             handledRoutes.Add(new Route("/v1/removeClient")
             {
                 DoPost = (reqBody) =>
                 {
-                    return DefaultTransaction<ClientDeletionRequest, ClientDeletionAttempt, BankClient>(reqBody, true);
+                    return SessionedTransaction<ClientDeletionRequest, ClientDeletionAttempt, BankClient>(reqBody, true);
                 }
             });
             handledRoutes.Add(new Route("/v1/createAccount")
             {
                 DoPost = (reqBody) =>
                 {
-                    return DefaultTransaction<AccountCreationRequest, AccountCreationAttempt, BankAccount>(reqBody, true);
+                    return SessionedTransaction<AccountCreationRequest, AccountCreationAttempt, BankAccount>(reqBody, true);
                 }
             });
             handledRoutes.Add(new Route("/v1/getAccount")
@@ -183,30 +187,40 @@ namespace BankingIntegration
                 DoPost = (reqBody) =>
                 {
 
-                    return DefaultTransaction<AccountByIdRequest, AccountByIdAttempt, BankAccount>(reqBody);
+                    return SessionedTransaction<AccountByIdRequest, AccountByIdAttempt, BankAccount>(reqBody);
                 }
             });
             handledRoutes.Add(new Route("/v1/getAccounts")
             {
                 DoPost = (reqBody) =>
                 {
-                    return DefaultTransaction<AccountsByClientRequest, AccountsByClientAttempt, BList<BankAccount>>(reqBody);
+                    return SessionedTransaction<AccountsByClientRequest, AccountsByClientAttempt, BList<BankAccount>>(reqBody);
                 }
             });
             handledRoutes.Add(new Route("/v1/removeAccount")
             {
                 DoPost = (reqBody) =>
                 {
-                    return DefaultTransaction<AccountDeletionRequest, AccountDeletionAttempt, BankAccount>(reqBody, true);
+                    return SessionedTransaction<AccountDeletionRequest, AccountDeletionAttempt, BankAccount>(reqBody, true);
                 }
             });
             handledRoutes.Add(new Route("/v1/insertTransaction")
             {
                 DoPost = (reqBody) =>
                 {
-                    return DefaultTransaction<TransactionRequest, TransactionAttempt, Transaction>(reqBody, true);
+                    return SessionedTransaction<TransactionRequest, TransactionAttempt, Transaction>(reqBody, true);
                 }
             });
+
+
+            handledRoutes.Add(new Route("/v1/getAccountTransactions")
+            {
+                DoPost = (reqBody) =>
+                {
+                    return SessionedTransaction<TransactionsByAccountRequest, TransactionsByAccountAttempt, BList<Transaction>>(reqBody, true);
+                }
+            });
+
 
 
             // TODO:
@@ -354,20 +368,37 @@ namespace BankingIntegration
             }
         }
 
-        private static T DefaultTransaction<A, B, T>(string reqBody, bool queue = false) where A : Sessioned, IRequest<B> where T : IResponsible where B : IAttempt
+        private static T UnsessionedTransaction<A, B, T>(string reqBody, bool queue = false) where A : IRequest<B>, IAttempt where T : IResponsible where B : IAttempt
+        {
+            A inputValue = JsonSerializer.Deserialize<A>(reqBody);
+
+            if (queue)
+            {
+                return CoreRequestOrQueue<T>(inputValue);
+            }
+            else
+            {
+                return MakeCoreRequest<T>(inputValue);
+            }
+
+        }
+
+        private static T SessionedTransaction<A, B, T>(string reqBody, bool queue = false) where A : ISessioned, IRequest<B> where T : IResponsible where B : IAttempt
         {
             A inputValue = JsonSerializer.Deserialize<A>(reqBody);
             UserSession us = GetUserSession(inputValue.SessionToken);
             if (IsUserSessionValid(us))
             {
-                if (queue) {
+                if (queue)
+                {
                     return CoreRequestOrQueue<T>(inputValue.ToAttempt(us.UserId));
                 }
                 else
                 {
                     return MakeCoreRequest<T>(inputValue.ToAttempt(us.UserId));
                 }
-            } else
+            }
+            else
             {
                 throw new NoSuchUserSessionException();
             }

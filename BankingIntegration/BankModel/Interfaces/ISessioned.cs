@@ -4,8 +4,8 @@ using System.Text;
 
 namespace BankingIntegration.BankModel
 {
-    interface Authenticated
+    interface ISessioned
     {
-        public int InitiatorId { get; set; } // The user ID that initiates the request
+        public string SessionToken { get; set; }
     }
 }

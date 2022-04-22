@@ -12,6 +12,7 @@ namespace BankingIntegration.BankModel
         CORE_OFFLINE = 1,
         CREDENTIALS_INVALID = 2,
         KEY_INVALID = 3,
+        CORE_ERROR = 4,
     }
     class ErrorMesage : BankSerializable, IResponsible
     {   

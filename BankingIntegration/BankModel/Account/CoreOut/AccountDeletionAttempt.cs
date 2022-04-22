@@ -6,7 +6,7 @@ using System.Text.Json.Serialization;
 
 namespace BankingIntegration.BankModel
 {
-    class AccountDeletionAttempt : IAttempt, Authenticated // Represents incoming client deletion requests
+    class AccountDeletionAttempt : IAttempt, IAuthenticated // Represents incoming client deletion requests
     {
         [JsonPropertyName("InitiatorId")]
         public int InitiatorId { get; set; }

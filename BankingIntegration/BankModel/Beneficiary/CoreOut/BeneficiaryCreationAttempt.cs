@@ -8,7 +8,7 @@ using System.Text.Json.Serialization;
 
 namespace BankingIntegration.BankModel
 {
-    class BeneficiaryCreationAttempt : Authenticated, IAttempt // Represents incoming client information requests
+    class BeneficiaryCreationAttempt : IAuthenticated, IAttempt // Represents incoming client information requests
     {
 
         [JsonPropertyName("InitiatorId")]

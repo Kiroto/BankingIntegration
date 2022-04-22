@@ -6,7 +6,7 @@ using System.Text.Json.Serialization;
 
 namespace BankingIntegration.BankModel
 {
-    class UserLoginRequest : BankSerializable
+    class UserLoginRequest : BankSerializable, IRequest<UserLoginRequest>, IAttempt
     {
         [JsonPropertyName("Username")]
         public string Username { get; set; }
@@ -18,9 +18,16 @@ namespace BankingIntegration.BankModel
         [JsonPropertyName("ServiceId")]
         public int ServiceId { get; set; }
 
+        public string ActionName => "Login";
+
         public string AsJsonString()
         {
             return JsonSerializer.Serialize(this);
+        }
+
+        public UserLoginRequest ToAttempt(int initiatorId)
+        {
+            return this;
         }
     }
 }

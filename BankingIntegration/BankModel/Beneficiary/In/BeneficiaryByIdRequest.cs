@@ -6,7 +6,7 @@ using System.Text.Json.Serialization;
 
 namespace BankingIntegration.BankModel.Beneficiary.In
 {
-    class BeneficiaryByIdRequest : BankSerializable, Sessioned, IRequest<BeneficiaryByIdAttempt>
+    class BeneficiaryByIdRequest : BankSerializable, ISessioned, IRequest<BeneficiaryByIdAttempt>
     {
         [JsonPropertyName("SessionToken")]
         public string SessionToken { get; set; }

@@ -6,7 +6,7 @@ using System.Text.Json.Serialization;
 
 namespace BankingIntegration.BankModel
 {
-    class AccountEditionAttempt : IAttempt, Authenticated // Represents outgoing client edition attempts
+    class AccountEditionAttempt : IAttempt, IAuthenticated // Represents outgoing client edition attempts
     {
         [JsonPropertyName("InitiatorId")]
         public int InitiatorId { get; set; }

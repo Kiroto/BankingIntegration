@@ -7,7 +7,7 @@ using System.Text.Json.Serialization;
 
 namespace BankingIntegration.BankModel.Transaction.CoreOut
 {
-    class TransactionAttempt : IAttempt, Authenticated
+    class TransactionAttempt : IAttempt, IAuthenticated
     {
         [JsonPropertyName("InitiatorId")]
         public int InitiatorId { get;  set; }

@@ -7,7 +7,7 @@ using System.Text.Json.Serialization;
 namespace BankingIntegration.BankModel
 {
 
-    class AccountDeletionRequest : BankSerializable, Sessioned, IRequest<AccountDeletionAttempt>  // Represents incoming client deletion requests
+    class AccountDeletionRequest : BankSerializable, ISessioned, IRequest<AccountDeletionAttempt>  // Represents incoming client deletion requests
     {
 
         [JsonPropertyName("SessionToken")]
