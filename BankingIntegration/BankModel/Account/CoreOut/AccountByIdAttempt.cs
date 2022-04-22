@@ -6,13 +6,15 @@ using System.Text.Json.Serialization;
 
 namespace BankingIntegration.BankModel
 {
-    class AccountByIdAttempt : BankSerializable, Authenticated // Represents incoming client information requests
+    class AccountByIdAttempt : Authenticated, IAttempt // Represents incoming client information requests
     {
 
         [JsonPropertyName("InitiatorId")]
         public int InitiatorId { get; set; }
         [JsonPropertyName("AccountId")]
         public int AccountId { get; set; }
+
+        public string ActionName => throw new NotImplementedException();
 
         public AccountByIdAttempt(AccountByIdRequest abir, int initiatorId)
         {

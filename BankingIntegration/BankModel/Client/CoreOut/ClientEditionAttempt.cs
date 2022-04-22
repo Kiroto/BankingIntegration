@@ -6,7 +6,7 @@ using System.Text.Json.Serialization;
 
 namespace BankingIntegration.BankModel
 {
-    class ClientEditionAttempt : BankSerializable, Authenticated // Represents outgoing client edition attempts
+    class ClientEditionAttempt : IAttempt, Authenticated // Represents outgoing client edition attempts
     {
         [JsonPropertyName("InitiatorId")]
         public int InitiatorId { get; set; }
@@ -14,6 +14,8 @@ namespace BankingIntegration.BankModel
         public BankClient BankClientInfo { get; set; }
         [JsonPropertyName("RequestId")]
         public string RequestId { get; set; }
+
+        public string ActionName => throw new NotImplementedException();
 
         public ClientEditionAttempt(ClientEditionRequest cer, int initiatorId)
         {

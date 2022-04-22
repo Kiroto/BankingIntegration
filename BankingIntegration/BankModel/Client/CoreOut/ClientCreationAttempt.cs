@@ -6,7 +6,7 @@ using System.Text.Json.Serialization;
 
 namespace BankingIntegration.BankModel
 {
-    class ClientCreationAttempt : BankSerializable, Authenticated // The information sent to the core on attemtping to create a client
+    class ClientCreationAttempt : IAttempt, Authenticated // The information sent to the core on attemtping to create a client
     {
         [JsonPropertyName("InitiatorId")]
         public int InitiatorId { get; set; }
@@ -14,6 +14,8 @@ namespace BankingIntegration.BankModel
         public BankClient BankClientInfo { get; set; }
         [JsonPropertyName("RequestId")]
         public string RequestId { get; set; }
+
+        public string ActionName => "CrearCliente";
 
         public ClientCreationAttempt(ClientCreationRequest ccr, int initiatorId)
         {

@@ -7,7 +7,7 @@ using System.Text.Json.Serialization;
 namespace BankingIntegration.BankModel
 {
 
-    class AccountEditionRequest : BankSerializable, Sessioned, IAttemptable<AccountEditionAttempt>  // Represents incoming client edition requests
+    class AccountEditionRequest : BankSerializable, Sessioned, IRequest<AccountEditionAttempt>  // Represents incoming client edition requests
     {
         [JsonPropertyName("SessionToken")]
         public string SessionToken { get; set; }

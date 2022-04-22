@@ -6,13 +6,15 @@ using System.Text.Json.Serialization;
 
 namespace BankingIntegration.BankModel
 {
-    class ClientInfoAttempt : BankSerializable, Authenticated // Represents incoming client information requests
+    class ClientInfoAttempt : IAttempt, Authenticated // Represents incoming client information requests
     {
 
         [JsonPropertyName("InitiatorId")]
         public int InitiatorId { get; set; }
-        [JsonPropertyName("ClientId")]
+        [JsonPropertyName("ID")]
         public int ClientId { get; set; }
+
+        public string ActionName => "BuscarClientePorID";
 
         public ClientInfoAttempt(ClientInfoRequest cir, int initiatorId)
         {
