@@ -4,6 +4,7 @@ using BankingIntegration.BankModel.Beneficiary.In;
 using BankingIntegration.BankModel.Employee;
 using BankingIntegration.BankModel.General;
 using BankingIntegration.BankModel.General.Responses;
+using BankingIntegration.BankModel.Loan;
 using BankingIntegration.BankModel.Transaction;
 using BankingIntegration.BankModel.Transaction.CoreOut;
 using BankingIntegration.BankModel.Transaction.In;
@@ -149,7 +150,14 @@ namespace BankingIntegration
             // Route createLoan
             // Route payLoan
             // Route removeLoan
-            // Route getLoansByClient
+            handledRoutes.Add(new Route("/v1/getLoansByClient")
+            {
+                DoPost = (reqBody) =>
+                {
+                    return SessionedTransaction<LoansByClientRequest, LoansByClientAttempt, BList<BankLoan>>(reqBody);
+                }
+            });
+
 
             handledRoutes.Add(new Route("/v1/addBeneficiario")
             {
@@ -160,7 +168,7 @@ namespace BankingIntegration
             });
 
             // Route updateBeneficiario
-            handledRoutes.Add(new Route("/v1/addBeneficiario")
+            handledRoutes.Add(new Route("/v1/getBeneficiarioByClient")
             {
                 DoPost = (reqBody) =>
                 {
