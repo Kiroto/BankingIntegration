@@ -24,99 +24,28 @@ namespace BankingIntegration
     {
         private static readonly HttpClient httpClient = new HttpClient();
 
+        // App info
         public static bool coreIsOnline = false;
         public static Uri coreUri = new Uri("http://www.cwebservice.somee.com/coreWservice.asmx");
         public static int defaultRequestTimeout = 10000;
         public static int sessionTimeoutMin = 15;
-
         public static string CoreNamespace = "http://bankCore.org/";
 
-        private static StringContent buildContents(IAttempt attempt)
-        {
-            string content = @$"<?xml version=""1.0"" encoding=""utf-8""?>
-            <soap:Envelope xmlns:xsi=""http://www.w3.org/2001/XMLSchema-instance"" xmlns:xsd=""http://www.w3.org/2001/XMLSchema"" xmlns:soap=""http://schemas.xmlsoap.org/soap/envelope/"">
-              <soap:Body>
-                <{attempt.ActionName} xmlns=""{CoreNamespace}"">
-                  <json>{attempt.AsJsonString()}</json>
-                </{attempt.ActionName}>
-              </soap:Body>
-            </soap:Envelope>";
-            return new StringContent(content, Encoding.UTF8, "text/xml");
-        }
-
-        private static string GetJsonFromXml(string xml, string actionName)
-        {
-            string startTag = $"<{actionName}Result>";
-            string endTag = $"</{actionName}Result>";
-            int jsonStart = xml.IndexOf(startTag) + startTag.Length;
-            int jsonLength = xml.IndexOf(endTag) - jsonStart;
-            if (jsonLength < 0) throw new CoreEndpointNotReached();
-            return xml.Substring(jsonStart, jsonLength);
-        }
-
-        private static T MakeCoreRequest<T>(IAttempt contents, HttpMethod method = HttpMethod.POST)
-        {
-            StringContent httpContents = buildContents(contents);
-            httpClient.DefaultRequestHeaders.Remove("SOAPAction");
-            httpClient.DefaultRequestHeaders.Add("SOAPAction", $"{CoreNamespace}{contents.ActionName}");
-
-            Task<HttpResponseMessage> TResponseMessage;
-            if (method == HttpMethod.GET)
-            {
-                TResponseMessage = httpClient.GetAsync(coreUri);
-            }
-            else if (method == HttpMethod.POST)
-            {
-                TResponseMessage = httpClient.PostAsync(coreUri, httpContents);
-            }
-            else if (method == HttpMethod.DELETE) // These last two will never be used
-            {
-                TResponseMessage = httpClient.DeleteAsync(coreUri);
-            }
-            else
-            {
-                throw new Exception("Unsupported request type");
-            }
-
-            if (!TResponseMessage.Wait(defaultRequestTimeout)) throw new CoreTimeoutException();
-            Task<string> TResultString = TResponseMessage.Result.Content.ReadAsStringAsync();
-            if (!TResultString.Wait(defaultRequestTimeout)) throw new CoreTimeoutException();
-            string xmlResult = TResultString.Result;
-            string jsonResult = GetJsonFromXml(xmlResult, contents.ActionName);
-            return JsonSerializer.Deserialize<T>(jsonResult);
-        }
-
-        // Returns the result of the core request or -1 if the request was sent to queue.
-        private static T CoreRequestOrQueue<T>(IAttempt contents, HttpMethod method = HttpMethod.POST)
-        {
-            try
-            {
-                return MakeCoreRequest<T>(contents, method);
-            }
-            catch (CoreTimeoutException e)
-            {
-                queuedRequests.Add(new QueuedRequest()
-                {
-                    Method = method,
-                    Contents = contents,
-                    QueuedTime = DateTime.Now
-                });
-                throw new TransactionQueuedException();
-            }
-        }
-
+        // Queues and sessions
         public static List<UserSession> userSessions = new List<UserSession>();
         public static List<QueuedRequest> queuedRequests = new List<QueuedRequest>();
+
+        // Prepared responses
         public static readonly ProcessedResponse coreOfflineResponse = new ProcessedResponse() { StatusCode = 503, Contents = MakeErrorMessage("The core is offline at the moment and cannot process this request.", ErrorCode.CORE_OFFLINE) };
         public static readonly ProcessedResponse invalidCredentialsResponse = new ProcessedResponse() { StatusCode = 400, Contents = MakeErrorMessage("The Credentials given are not valid.", ErrorCode.CREDENTIALS_INVALID) };
         public static readonly ProcessedResponse invalidSessionResponse = new ProcessedResponse() { StatusCode = 403, Contents = MakeErrorMessage("The received session key is not valid.", ErrorCode.CREDENTIALS_INVALID) };
         public static readonly ProcessedResponse transactionQueuedResponse = new ProcessedResponse() { StatusCode = 200, Contents = MakeErrorMessage("The transaction has been queued.", ErrorCode.CORE_OFFLINE) };
         public static readonly ProcessedResponse coreEndpointNotReachedResponse = new ProcessedResponse() { StatusCode = 500, Contents = MakeErrorMessage("The transaction couldn't reach core", ErrorCode.CORE_ERROR) };
 
-
         public delegate void CoreIsUp();
         public static event CoreIsUp OnCoreUp;
 
+        // Configurator/initiator
         public IntegrationServer(int preferredPort = 8081) : base(preferredPort)
         {
             AddUserSession(new UserSession() { SessionToken = "123456", UserId = 5 });
@@ -140,7 +69,7 @@ namespace BankingIntegration
                     UserSession us;
                     if (ulr.ServiceId == 1) // If it comes from web
                     {
-                        BankClient authenticatedClient =  UnsessionedTransaction<UserLoginRequest, UserLoginRequest, BankClient>(reqBody);
+                        BankClient authenticatedClient = UnsessionedTransaction<UserLoginRequest, UserLoginRequest, BankClient>(reqBody);
                         us = new ClientSession(authenticatedClient);
                         AddUserSession(us);
                     }
@@ -283,6 +212,80 @@ namespace BankingIntegration
             });
         }
 
+        // Builds contents to make core requests
+        private static StringContent buildContents(IAttempt attempt)
+        {
+            string content = @$"<?xml version=""1.0"" encoding=""utf-8""?>
+            <soap:Envelope xmlns:xsi=""http://www.w3.org/2001/XMLSchema-instance"" xmlns:xsd=""http://www.w3.org/2001/XMLSchema"" xmlns:soap=""http://schemas.xmlsoap.org/soap/envelope/"">
+              <soap:Body>
+                <{attempt.ActionName} xmlns=""{CoreNamespace}"">
+                  <json>{attempt.AsJsonString()}</json>
+                </{attempt.ActionName}>
+              </soap:Body>
+            </soap:Envelope>";
+            return new StringContent(content, Encoding.UTF8, "text/xml");
+        }
+        // Extracts the json output from the xml response
+        private static string GetJsonFromXml(string xml, string actionName)
+        {
+            string startTag = $"<{actionName}Result>";
+            string endTag = $"</{actionName}Result>";
+            int jsonStart = xml.IndexOf(startTag) + startTag.Length;
+            int jsonLength = xml.IndexOf(endTag) - jsonStart;
+            if (jsonLength < 0) throw new CoreEndpointNotReached();
+            return xml.Substring(jsonStart, jsonLength);
+        }
+        // Makes a request to the core
+        private static T MakeCoreRequest<T>(IAttempt contents, HttpMethod method = HttpMethod.POST)
+        {
+            StringContent httpContents = buildContents(contents);
+            httpClient.DefaultRequestHeaders.Remove("SOAPAction");
+            httpClient.DefaultRequestHeaders.Add("SOAPAction", $"{CoreNamespace}{contents.ActionName}");
+
+            Task<HttpResponseMessage> TResponseMessage;
+            if (method == HttpMethod.GET)
+            {
+                TResponseMessage = httpClient.GetAsync(coreUri);
+            }
+            else if (method == HttpMethod.POST)
+            {
+                TResponseMessage = httpClient.PostAsync(coreUri, httpContents);
+            }
+            else if (method == HttpMethod.DELETE) // These last two will never be used
+            {
+                TResponseMessage = httpClient.DeleteAsync(coreUri);
+            }
+            else
+            {
+                throw new Exception("Unsupported request type");
+            }
+
+            if (!TResponseMessage.Wait(defaultRequestTimeout)) throw new CoreTimeoutException();
+            Task<string> TResultString = TResponseMessage.Result.Content.ReadAsStringAsync();
+            if (!TResultString.Wait(defaultRequestTimeout)) throw new CoreTimeoutException();
+            string xmlResult = TResultString.Result;
+            string jsonResult = GetJsonFromXml(xmlResult, contents.ActionName);
+            return JsonSerializer.Deserialize<T>(jsonResult);
+        }
+        // Returns the result of the core request or -1 if the request was sent to queue.
+        private static T CoreRequestOrQueue<T>(IAttempt contents, HttpMethod method = HttpMethod.POST)
+        {
+            try
+            {
+                return MakeCoreRequest<T>(contents, method);
+            }
+            catch (CoreTimeoutException e)
+            {
+                queuedRequests.Add(new QueuedRequest()
+                {
+                    Method = method,
+                    Contents = contents,
+                    QueuedTime = DateTime.Now
+                });
+                throw new TransactionQueuedException();
+            }
+        }
+
         // Encryption Functions
         private static string MakeErrorMessage(string message, ErrorCode code)
         {
@@ -309,19 +312,6 @@ namespace BankingIntegration
             });
             return us;
 
-        }
-        private static bool IsUserSessionValid(string sessionToken)
-        {
-            try
-            {
-                UserSession us = GetUserSession(sessionToken);
-                return IsUserSessionValid(us);
-
-            }
-            catch
-            {
-                return false;
-            }
         }
         private static bool IsUserSessionValid(UserSession us)
         {
@@ -360,6 +350,7 @@ namespace BankingIntegration
             }
         }
 
+        // Core Transaction functions
         private static T UnsessionedTransaction<A, B, T>(string reqBody, bool queue = false) where A : IRequest<B>, IAttempt where T : IResponsible where B : IAttempt
         {
             A inputValue = JsonSerializer.Deserialize<A>(reqBody);
@@ -374,7 +365,6 @@ namespace BankingIntegration
             }
 
         }
-
         private static T SessionedTransaction<A, B, T>(string reqBody, bool queue = false) where A : ISessioned, IRequest<B> where T : IResponsible where B : IAttempt
         {
             A inputValue = JsonSerializer.Deserialize<A>(reqBody);
@@ -396,6 +386,7 @@ namespace BankingIntegration
             }
         }
 
+        // Queued request functions
         private void DoQueuedRequests()
         {
             foreach (QueuedRequest qr in queuedRequests)
@@ -415,7 +406,5 @@ namespace BankingIntegration
                 return qr.Tried == true;
             });
         }
-
-        // Authentication Functions
     }
 }
